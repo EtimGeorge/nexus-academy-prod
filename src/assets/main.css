@@ -1,0 +1,227 @@
+/* /src/assets/main.css - FINAL "NEXUS DARK" DESIGN SYSTEM (WITH ENHANCEMENTS) */
+
+/* --- CSS Reset --- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+body,
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote,
+dl,
+dd {
+  margin: 0;
+}
+ul,
+ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+html {
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+body {
+  min-height: 100vh;
+}
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+}
+input,
+button,
+textarea,
+select {
+  font: inherit;
+}
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* --- Nexus Dark Theme CSS Variables --- */
+:root {
+  --dark-navy: #0b0f19;
+  --dark-blue-bg: #111827;
+  --dark-blue-card: #1d2333;
+  --dark-border: #374151;
+  --brand-deep-blue: #030be1;
+  --brand-bright-blue: #266cff;
+  --brand-aqua: #00e0ff;
+  --text-primary-light: #f9fafb;
+  --text-secondary-light: #9ca3af;
+  --text-accent: var(--brand-aqua);
+  --font-family: "Sora", sans-serif;
+  --font-regular: 400;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --container-padding: 1.5rem;
+  --container-max-width: 1280px;
+}
+
+/* --- Base Body & Typography Styles --- */
+body {
+  font-family: var(--font-family);
+  font-weight: var(--font-regular);
+  background-color: var(--dark-navy);
+  color: var(--text-secondary-light);
+}
+
+.container {
+  width: 100%;
+  max-width: var(--container-max-width);
+  margin: 0 auto;
+  padding: 0 var(--container-padding);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: var(--font-bold);
+  line-height: 1.2;
+  color: var(--text-primary-light);
+}
+h1 {
+  font-size: 2.5rem;
+}
+h2 {
+  font-size: 2rem;
+}
+h3 {
+  font-size: 1.25rem;
+}
+p {
+  line-height: 1.8;
+  margin-bottom: 1rem;
+}
+a {
+  transition: color 0.2s ease;
+}
+a:hover {
+  color: var(--text-accent);
+}
+
+/* --- Global Button Styles --- */
+.btn {
+  display: inline-block;
+  padding: 0.8rem 2rem;
+  font-weight: var(--font-semibold);
+  border-radius: 50px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.3s ease;
+}
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 224, 255, 0.15);
+}
+.btn-primary {
+  background: linear-gradient(
+    90deg,
+    var(--brand-bright-blue),
+    var(--brand-aqua)
+  );
+  color: var(--dark-navy);
+  font-weight: var(--font-bold);
+}
+.btn-secondary {
+  background-color: transparent;
+  color: var(--text-primary-light);
+  border: 1px solid var(--dark-border);
+}
+
+/* --- Global Section Styles --- */
+.section {
+  padding: 6rem 0;
+}
+.section-title {
+  text-align: center;
+  font-size: 3rem;
+  margin-bottom: 1.5rem;
+}
+.section-subtitle {
+  text-align: center;
+  font-size: 1.125rem;
+  max-width: 700px;
+  margin: 0 auto 4rem auto;
+  line-height: 1.8;
+}
+
+/* --- ENHANCED PAGE LOADER STYLES --- */
+.page-loader-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  /* Use our new dark background color */
+  background-color: var(--dark-navy);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  transition: opacity 0.5s ease;
+}
+
+.page-loader-container.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/*
+  The spinner is now a container for the logo and the spinning border.
+  'position: relative' allows us to layer the logo on top of the spinner.
+*/
+.spinner {
+  position: relative;
+  width: 80px; /* Increased size to fit the logo */
+  height: 80px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/*
+  This is the spinning border. It's a pseudo-element so we don't need extra HTML.
+*/
+.spinner::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  /* The border is a subtle dark gray, with the brand aqua color for the spinning part */
+  border: 5px solid var(--dark-border);
+  border-top-color: var(--brand-aqua);
+  animation: spin 1s linear infinite;
+}
+
+/* This is the logo image that sits inside the spinner */
+.spinner-logo {
+  width: 50px; /* Size of the logo inside the 80px spinner */
+  height: 50px;
+}
+
+/* The CSS animation keyframes for the spinning motion (Unchanged) */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
