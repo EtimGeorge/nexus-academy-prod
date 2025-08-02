@@ -352,6 +352,8 @@ watch(selectedCoin, (newCoin) => {
   max-width: 500px;
   position: relative;
   animation: fadeInModal 0.3s ease forwards;
+  max-height: 85vh;
+  overflow-y: auto;
 }
 @keyframes fadeInModal {
   from {
@@ -434,32 +436,81 @@ watch(selectedCoin, (newCoin) => {
 .crypto-details li {
   margin-bottom: 0.75rem;
 }
-.wallet-address {
-  display: flex;
+
+.wallet-card {
+  background-color: var(--dark-blue-card);
+  border: 1px solid var(--dark-border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+.wallet-card h4 {
+  color: white;
+  font-size: 1.25rem;
   margin-bottom: 1rem;
 }
-.wallet-address input {
-  flex-grow: 1;
-  padding: 0.75rem;
+
+.wallet-address-group {
+  margin-bottom: 1rem;
+}
+
+.wallet-address-group label {
+  display: block;
+  color: var(--text-secondary-light);
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.wallet-address-group input {
+  width: 100%;
+  padding: 0.75rem 1rem;
   background-color: var(--dark-navy);
   border: 1px solid var(--dark-border);
+  border-radius: 6px;
   color: var(--text-primary-light);
-  border-radius: 6px 0 0 6px;
   font-family: monospace;
+  font-size: 0.9rem;
 }
-.wallet-address button {
-  padding: 0.75rem 1rem;
+
+.wallet-address-group {
+  position: relative;
+}
+
+.wallet-address-group button {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
   background-color: var(--brand-aqua);
   color: var(--dark-navy);
   border: none;
-  border-radius: 0 6px 6px 0;
-  cursor: pointer;
+  border-radius: 5px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
   font-weight: var(--font-bold);
+  cursor: pointer;
+  transition: background-color 0.2s;
 }
+
+.wallet-address-group button:hover {
+  background-color: #8ff9f9; /* Lighter aqua */
+}
+
+.wallet-warning {
+  display: block;
+  margin-top: 1.5rem;
+  font-size: 0.875rem;
+  color: #facc15; /* A yellow that fits the theme */
+}
+
 .crypto-notice {
   font-size: 0.875rem;
   font-style: italic;
   color: var(--text-secondary-light);
+  margin-top: 1rem;
+  border-top: 1px solid var(--dark-border);
+  padding-top: 1rem;
 }
 
 /* Form control styles (reused from global or auth pages) */
