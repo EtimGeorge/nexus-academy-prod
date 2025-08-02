@@ -1,71 +1,66 @@
-<!-- /src/views/CoursePlayerView.vue -->
-
+<!-- /src/views/CoursePlayerView.vue - FINAL, LIVE DATA VERSION -->
 <template>
   <!-- 
-    ==========================================================================
-    TEMPLATE / HTML STRUCTURE
-    ==========================================================================
-    This is a direct migration of your CoursePlayer.html file, adapted for Vue.
+    This is the main wrapper for our "Digital Classroom" experience.
+    It uses the same professional, mobile-first CSS as our previous design.
   -->
   <div class="course-player-wrapper">
     <!-- Mobile-only sidebar toggle button -->
     <button
       class="sidebar-toggle-btn"
-      @click="toggleSidebar"
-      :class="{ 'is-active': isSidebarOpen }"
+      id="sidebar-toggle-btn"
       aria-label="Toggle Lesson List"
     >
-      <div class="hamburger">
-        <span></span>
-        <span></span>
-        <span></span>
-      </div>
+      <div class="hamburger"><span></span><span></span><span></span></div>
     </button>
 
     <div class="course-player-layout">
-      <!-- 
-        Lesson Sidebar
-        The 'is-active' class is now dynamically controlled by a reactive Vue variable.
-      -->
-      <aside class="lesson-sidebar" :class="{ 'is-active': isSidebarOpen }">
-        <!-- The entire sidebar is only rendered after the course data has been loaded -->
-        <template v-if="course">
-          <header class="sidebar-header">
-            <h2>{{ course.title }}</h2>
-            <RouterLink to="/dashboard">← Back to Dashboard</RouterLink>
-          </header>
-
-          <div id="lesson-list-container">
-            <!-- The v-for loops build the module and lesson list from our fetched data -->
-            <div v-for="module in course.modules" :key="module.title">
-              <h3 class="module-title">{{ module.title }}</h3>
-              <ul class="lesson-list">
-                <li
-                  v-for="lesson in getLessonsForModule(module.title)"
-                  :key="lesson.id"
-                  class="lesson-list-item"
-                  :class="{ active: currentLessonId === lesson.id }"
-                  @click="selectLesson(lesson.id)"
-                >
-                  <a href="#">
-                    <span class="lesson-icon">●</span>
-                    {{ lesson.title }}
-                  </a>
-                </li>
-              </ul>
-            </div>
+      <!-- Lesson Sidebar -->
+      <aside class="lesson-sidebar" id="lesson-sidebar">
+        <header class="sidebar-header">
+          <!-- The course title is now dynamically populated from Firestore -->
+          <h2 id="sidebar-course-title">{{ course?.title || "Loading..." }}</h2>
+          <RouterLink to="/dashboard">← Back to Dashboard</RouterLink>
+        </header>
+        <div id="lesson-list-container">
+          <!-- The curriculum is now dynamically generated from our live course data -->
+          <div v-for="module in course?.modules" :key="module.title">
+            <h3 class="module-title">{{ module.title }}</h3>
+            <ul class="lesson-list">
+              <li
+                v-for="lesson in module.lessons"
+                :key="lesson.id"
+                :class="[
+                  'lesson-list-item',
+                  { active: lesson.id === currentLessonId },
+                ]"
+                :data-lesson-id="lesson.id"
+              >
+                <a href="#">
+                  <span class="lesson-icon">●</span>
+                  {{ lesson.title }}
+                </a>
+              </li>
+            </ul>
           </div>
-        </template>
+        </div>
       </aside>
 
       <!-- Main Content Area -->
-      <main class="lesson-main-content">
-        <!-- A loader is shown while data is being fetched -->
+      <main id="lesson-main-content" class="lesson-main-content">
+        <!-- Loading State -->
         <div v-if="isLoading" class="page-loader-container">
           <div class="spinner"></div>
         </div>
-        <!-- The active lesson is displayed once loading is complete -->
-        <div v-else-if="activeLesson">
+
+        <!-- Error State -->
+        <div v-else-if="error" class="error-message">
+          <h1>Course Not Found</h1>
+          <p>We couldn't find the course you were looking for.</p>
+        </div>
+
+        <!-- Ideal State (Lesson Loaded) -->
+        <template v-else-if="activeLesson">
           <h3>{{ activeLesson.title }}</h3>
           <div class="video-container">
             <iframe
@@ -80,93 +75,101 @@
             class="lesson-content-text"
             v-html="activeLesson.textContentHTML"
           ></div>
-        </div>
+        </template>
       </main>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, onMounted, computed, nextTick } from 'vue';
 import { useRoute, RouterLink } from "vue-router";
-// We now import from our new, centralized courseData service
-import { getCourseDetailsById } from "../services/courseData.js";
+// **THE CRITICAL FIX:** We now import exclusively from our live database service.
+import { getCourseWithLessons } from "@/services/db.js";
 
-// --- Reactive State ---
+// --- Component State ---
 const route = useRoute();
+const courseId = ref(route.params.id);
 const course = ref(null);
-const lessons = ref([]);
 const currentLessonId = ref(null);
 const isLoading = ref(true);
-const isSidebarOpen = ref(false);
+const error = ref(null);
 
-// --- Computed Properties ---
-// This computed property finds the currently active lesson object from the lessons array.
-// It will automatically re-calculate whenever currentLessonId changes.
+// --- Computed Property ---
+// This safely finds the currently active lesson object from our data.
 const activeLesson = computed(() => {
-  if (!lessons.value.length) return null;
-  return lessons.value.find((l) => l.id === currentLessonId.value);
+  if (!course.value || !currentLessonId.value) return null;
+  // Flatten all lessons from all modules into a single array and find the one that matches.
+  return course.value.modules
+    .flatMap((m) => m.lessons)
+    .find((l) => l.id === currentLessonId.value);
 });
 
 // --- Methods ---
-
 /**
- * A helper method to filter lessons for a specific module title.
- * @param {string} moduleTitle - The title of the module.
- * @returns {Array} - An array of lesson objects belonging to that module.
+ * Attaches all necessary event listeners for the page, including the mobile sidebar toggle.
  */
-function getLessonsForModule(moduleTitle) {
-  return lessons.value.filter((l) => l.moduleTitle === moduleTitle);
-}
+function attachEventListeners() {
+  const lessonListContainer = document.getElementById("lesson-list-container");
+  const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
+  const sidebar = document.getElementById("lesson-sidebar");
 
-/**
- * Sets the current lesson ID and closes the mobile sidebar if it's open.
- * @param {string} lessonId - The ID of the lesson to make active.
- */
-function selectLesson(lessonId) {
-  currentLessonId.value = lessonId;
-  if (isSidebarOpen.value) {
-    isSidebarOpen.value = false;
-  }
-}
-
-/**
- * Toggles the visibility of the mobile sidebar.
- */
-function toggleSidebar() {
-  isSidebarOpen.value = !isSidebarOpen.value;
-}
-
-// --- Lifecycle Hooks ---
-onMounted(() => {
-  const courseId = route.params.id;
-  if (courseId) {
-    // Fetch the course data from our mock data service
-    const courseData = getCourseDetailsById(courseId);
-    if (courseData) {
-      course.value = courseData;
-      // Process the modules to create a flat list of lesson objects
-      lessons.value = courseData.modules.flatMap((module, moduleIndex) =>
-        module.lessons.map((lessonTitle, lessonIndex) => ({
-          id: `${courseData.id}-m${moduleIndex}-l${lessonIndex}`,
-          title: lessonTitle,
-          moduleTitle: module.title,
-          videoURL: "https://www.youtube.com/embed/S_p3-g_c3vo", // Placeholder
-          textContentHTML: `<p>Full text content for "${lessonTitle}" will appear here.</p>`,
-        }))
-      );
-      // Set the first lesson as the active one by default
-      if (lessons.value.length > 0) {
-        currentLessonId.value = lessons.value[0].id;
+  if (lessonListContainer) {
+    lessonListContainer.addEventListener("click", (e) => {
+      const clickedLi = e.target.closest(".lesson-list-item");
+      if (clickedLi && clickedLi.dataset.lessonId) {
+        e.preventDefault();
+        currentLessonId.value = clickedLi.dataset.lessonId;
+        if (sidebar?.classList.contains("is-active")) {
+          sidebar.classList.remove("is-active");
+          sidebarToggleBtn?.classList.remove("is-active");
+        }
       }
-    }
+    });
   }
-  isLoading.value = false;
+
+  if (sidebarToggleBtn && sidebar) {
+    sidebarToggleBtn.addEventListener("click", () => {
+      sidebarToggleBtn.classList.toggle("is-active");
+      sidebar.classList.toggle("is-active");
+    });
+  }
+}
+
+// --- Lifecycle Hook & Data Fetching ---
+// This now fetches the complete, live course data from Firestore when the component is created.
+onMounted(async () => {
+  try {
+    isLoading.value = true;
+    const fetchedCourse = await getCourseWithLessons(courseId.value);
+
+    if (fetchedCourse) {
+      course.value = fetchedCourse;
+      // Set the first lesson of the first module as the default active lesson.
+      if (fetchedCourse.modules?.[0]?.lessons?.[0]) {
+        currentLessonId.value = fetchedCourse.modules[0].lessons[0].id;
+      }
+    } else {
+      throw new Error("Course not found in database.");
+    }
+  } catch (err) {
+    console.error("Failed to load course player data:", err);
+    error.value = err;
+  } finally {
+    isLoading.value = false;
+    // We must wait for the next DOM update cycle before attaching listeners
+    // to ensure all the v-for elements have been rendered.
+    await nextTick();
+    attachEventListeners();
+  }
 });
 </script>
 
 <style scoped>
-/* This is a direct migration of your CoursePlayer.css file */
+/* 
+  This is the final, production-ready CSS for our "Digital Classroom".
+  It is a direct migration of our previously agreed-upon responsive styles.
+*/
 .course-player-wrapper {
   background-color: #0b0f19;
   color: #d1d5db;
@@ -213,6 +216,9 @@ onMounted(() => {
   font-size: 0.875rem;
   transition: color 0.2s;
 }
+.sidebar-header a:hover {
+  color: var(--brand-aqua);
+}
 #lesson-list-container {
   overflow-y: auto;
   flex: 1;
@@ -228,9 +234,6 @@ onMounted(() => {
 .lesson-list {
   padding: 0 1rem 1rem 1rem;
 }
-.lesson-list-item {
-  cursor: pointer;
-}
 .lesson-list-item a {
   display: flex;
   align-items: center;
@@ -240,8 +243,9 @@ onMounted(() => {
   margin-bottom: 0.25rem;
   font-weight: 500;
   transition: background-color 0.2s;
+  color: var(--text-primary-light);
 }
-.lesson-list-item:hover a {
+.lesson-list-item a:hover {
   background-color: #1d2333;
 }
 .lesson-list-item.active a {
@@ -284,13 +288,16 @@ onMounted(() => {
   font-size: 1.1rem;
   line-height: 1.8;
 }
+.lesson-content-text :deep(p) {
+  margin-bottom: 1em;
+} /* Example of styling rendered HTML */
 .sidebar-toggle-btn {
   position: fixed;
   top: 1.5rem;
   left: var(--container-padding);
   z-index: 1001;
-  background-color: var(--dark-blue-card);
-  border: 1px solid var(--dark-border);
+  background-color: #1d2333;
+  border: 1px solid #374151;
   border-radius: 50%;
   width: 44px;
   height: 44px;
@@ -299,23 +306,19 @@ onMounted(() => {
   justify-content: center;
   cursor: pointer;
 }
-.sidebar-toggle-btn.is-active span:nth-child(1) {
-  transform: rotate(45deg);
-}
-.sidebar-toggle-btn.is-active span:nth-child(2) {
-  opacity: 0;
-}
-.sidebar-toggle-btn.is-active span:nth-child(3) {
-  transform: rotate(-45deg);
+.sidebar-toggle-btn .hamburger {
+  width: 24px;
+  height: 24px;
 }
 .sidebar-toggle-btn .hamburger span {
-  height: 2px;
-  width: 20px;
+  height: 3px;
+  width: 24px;
   background-color: white;
-  display: block;
-  margin: 4px 0;
-  transition: all 0.3s ease-in-out;
-  transform-origin: center;
+}
+.error-message {
+  text-align: center;
+  color: white;
+  padding: 3rem;
 }
 @media (min-width: 1024px) {
   .sidebar-toggle-btn {

@@ -1,11 +1,10 @@
-<!-- /src/views/HomeView.vue - FINAL, FEATURE-COMPLETE VERSION -->
-
+<!-- /src/views/HomeView.vue - FINAL, COMPLETE, LIVE-DATA VERSION -->
 <template>
   <div class="home-page-wrapper">
     <main>
       <!-- 
         ==========================================================================
-        HERO SECTION
+        HERO SECTION (Complete)
         ==========================================================================
       -->
       <section class="container hero">
@@ -21,7 +20,7 @@
 
       <!-- 
         ==========================================================================
-        FEATURED COURSES SECTION
+        FEATURED COURSES SECTION (Complete, Live & Robust)
         ==========================================================================
       -->
       <section id="courses" class="section">
@@ -33,10 +32,27 @@
               skills. Find the track that fits your goals.
             </p>
           </div>
-          <div class="courses-grid">
+
+          <!-- Conditional Rendering Block for Live Data -->
+          <div v-if="coursesLoading" class="loader-small">
+            <div class="spinner"></div>
+          </div>
+
+          <div v-else-if="coursesError" class="error-small">
+            <p><strong>Could not load featured courses.</strong></p>
+            <p
+              v-if="coursesError.code === 'failed-precondition'"
+              class="error-details"
+            >
+              (Admin Action Required: A Firestore index is missing. Please check
+              the browser's developer console for a link to create it.)
+            </p>
+          </div>
+
+          <div v-else-if="featuredCourses.length > 0" class="courses-grid">
             <div
               v-for="course in featuredCourses"
-              :key="course.title"
+              :key="course.id"
               class="course-card animate-on-scroll"
             >
               <div class="course-card-image-container">
@@ -51,21 +67,28 @@
                 <h3 class="course-card-title">{{ course.title }}</h3>
                 <p class="course-card-description">{{ course.description }}</p>
                 <div class="course-card-details">
-                  <p>{{ course.price }}</p>
-                  <span>{{ course.flexibility }}</span>
+                  <p>{{ formatPrice(course.price, course.currency) }}</p>
+                  <span>{{ course.level }}</span>
                 </div>
-                <RouterLink :to="course.link" class="btn btn-primary"
+                <RouterLink :to="`/course/${course.id}`" class="btn btn-primary"
                   >Learn More</RouterLink
                 >
               </div>
             </div>
+          </div>
+
+          <div v-else class="no-data-message">
+            <p>
+              No featured courses available at the moment. Please check back
+              soon!
+            </p>
           </div>
         </div>
       </section>
 
       <!-- 
         ==========================================================================
-        WHY US / DIFFERENTIATORS SECTION
+        WHY US / DIFFERENTIATORS SECTION (Complete)
         ==========================================================================
       -->
       <section id="why-us" class="section why-us-section">
@@ -92,7 +115,7 @@
 
       <!-- 
         ==========================================================================
-        TESTIMONIALS SECTION
+        TESTIMONIALS SECTION (Complete)
         ==========================================================================
       -->
       <section id="testimonials" class="section">
@@ -129,7 +152,7 @@
 
       <!-- 
         ==========================================================================
-        BLOG PREVIEW SECTION
+        BLOG PREVIEW SECTION (Complete, Live & Robust)
         ==========================================================================
       -->
       <section id="blog" class="section why-us-section">
@@ -141,30 +164,52 @@
               reviews, and workflow tutorials from our team.
             </p>
           </div>
-          <div class="blog-grid">
+
+          <div v-if="blogLoading" class="loader-small">
+            <div class="spinner"></div>
+          </div>
+
+          <div v-else-if="blogError" class="error-small">
+            <p><strong>Could not load recent posts.</strong></p>
+            <p
+              v-if="blogError.code === 'failed-precondition'"
+              class="error-details"
+            >
+              (Admin Action Required: A Firestore index is missing. Please check
+              the console.)
+            </p>
+          </div>
+
+          <div v-else-if="recentPosts.length > 0" class="blog-grid">
             <RouterLink
-              v-for="post in blogPosts"
-              :key="post.title"
-              :to="post.link"
+              v-for="post in recentPosts"
+              :key="post.id"
+              :to="`/blog/${post.id}`"
               class="blog-post-card animate-on-scroll"
             >
               <div class="blog-post-card-content">
                 <p class="blog-post-card-category">{{ post.category }}</p>
                 <h3 class="blog-post-card-title">{{ post.title }}</h3>
-                <p class="blog-post-card-date">{{ post.date }}</p>
+                <p class="blog-post-card-date">
+                  {{ formatDate(post.publishedAt) }}
+                </p>
               </div>
             </RouterLink>
+          </div>
+
+          <div v-else class="no-data-message">
+            <p>No recent blog posts available.</p>
           </div>
         </div>
       </section>
 
       <!-- 
         ==========================================================================
-        FINAL CALL TO ACTION (CTA) SECTION
+        FINAL CALL TO ACTION (CTA) SECTION (Complete)
         ==========================================================================
       -->
       <section id="cta" class="section">
-        <div class="container animate-on-scroll cta-container">
+        <div class="container cta-container animate-on-scroll">
           <h2 class="section-title">Ready to Build?</h2>
           <p class="section-subtitle">
             Your first steps into the world of AI creation are just a click
@@ -180,85 +225,19 @@
 </template>
 
 <script setup>
-// This is the modern Vue 3 <script setup> block, which is clean and efficient.
-import { onMounted } from "vue";
-import { RouterLink } from "vue-router";
+// **THE FIX:** Import 'watch' and 'nextTick' from Vue.
+import { ref, onMounted, watch, nextTick } from 'vue';
+import { RouterLink } from 'vue-router';
+import { getFeaturedCourses, getRecentBlogPosts } from '@/services/db.js';
 
-// ===================================================================================
-//  COMPONENT DATA
-//  This is the single source of truth for this page's content.
-// ===================================================================================
-
+// --- Static Data (for sections that don't need to be in the CMS yet) ---
+// --- Static Data ---
 const hero = {
   title: "The Gap Between Knowing and Doing is Closing.",
   slogan: "Nexus Academy: Where Human Ingenuity Meets Artificial Intelligence.",
   subtitle:
     "Stop watching tutorials. Start building real-world AI solutions. Our hands-on courses and AI-powered tutor will guide you from concept to creation.",
 };
-
-const featuredCourses = [
-  {
-    title: "AI for Content & Marketing",
-    description:
-      "Learn to generate viral content ideas, write compelling copy, and create stunning visuals with AI.",
-    price: "Starts at $299",
-    flexibility: "Self-Paced",
-    imageUrl:
-      "https://images.pexels.com/photos/879109/pexels-photo-879109.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
-    link: "/courses",
-  },
-  {
-    title: "Agentic Workflows with n8n",
-    description:
-      "Go beyond simple automation. Learn to build, test, and deploy complex, multi-step AI agents.",
-    price: "Starts at $499",
-    flexibility: "Self-Paced",
-    imageUrl:
-      "https://images.pexels.com/photos/7688460/pexels-photo-7688460.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
-    link: "/courses",
-  },
-   {
-    title: "AI for Business & Productivity",
-    description:
-      "Automate tedious tasks, analyze data for key insights, and build custom AI agents to streamline your workflows.",
-    price: "Starts at $399",
-    flexibility: "Self-Paced",
-    imageUrl:
-      "https://images.pexels.com/photos/3184418/pexels-photo-3184418.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
-    link: "#/signup",
-  },
-  {
-    title: "AI-Powered Design",
-    description:
-      "Create stunning graphics, videos, and animations using the latest AI design tools. No design experience required.",
-    price: "Starts at $349",
-    flexibility: "Self-Paced",
-    imageUrl:
-      "https://images.pexels.com/photos/3184292/pexels-photo-3184292.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
-    link: "#/signup",
-  },
-  {
-    title: "AI for Developers",
-    description:
-      "Master the latest AI frameworks and libraries. Build, train, and deploy your own AI models from scratch.",
-    price: "Starts at $599",
-    flexibility: "Self-Paced",
-    imageUrl:
-      "https://images.pexels.com/photos/3861960/pexels-photo-3861960.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
-    link: "#/signup",
-  },
-  {
-    title: "The Agentic Architect Program",
-    description:
-      "Go beyond using tools. Learn to architect and build your own multi-step AI agents using APIs and vector databases.",
-    price: "Starts at $999",
-    flexibility: "Cohort-Based",
-    imageUrl:
-      "https://images.pexels.com/photos/546819/pexels-photo-546819.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
-    link: "#/signup",
-  },
-];
-
 const whyNexusFeatures = [
   {
     title: "24/7 Personalized Support",
@@ -275,7 +254,7 @@ const whyNexusFeatures = [
     description:
       "The AI space moves at light speed. We update our courses constantly to teach the latest tools and techniques.",
   },
-   {
+  {
     title: "Learn by Doing",
     description:
       "The interactive exercises on WhatsApp and the AI Playground on the site make the learning active, not passive.",
@@ -312,7 +291,7 @@ const testimonials = [
     image:
       "https://images.pexels.com/photos/377058/pexels-photo-377058.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1",
   },
-   {
+  {
     name: "Sam (The Builder)",
     role: "Developer",
     quote:
@@ -338,96 +317,100 @@ const testimonials = [
   },
 ];
 
-const blogPosts = [
-  {
-    category: "Tool Spotlight",
-    title: "Kling vs Runway: Which AI Video Tool is Right for You?",
-    date: "July 22, 2024",
-    link: "/blog",
-  },
-  {
-    category: "Workflow Wednesday",
-    title: "How to Build a Custom GPT to Analyze Customer Feedback",
-    date: "July 17, 2024",
-    link: "#",
-  },
-  {
-    category: "Future Forward",
-    title: "The 'AI Skills Gap' is Here. Here's How to Get Ahead.",
-    date: "July 15, 2024",
-    link: "#",
-  },
-  {
-    category: "Tool Spotlight",
-    title: "Top 5 AI Tools for Content Creators in 2024",
-    date: "July 20, 2024",
-    link: "/blog",
-  },
-  {
-    category: "AI News",
-    title: "OpenAI's Latest Model: What It Means for Developers",
-    date: "July 19, 2024",
-    link: "#",
-  },
-  {
-    category: "Workflow Tutorials",
-    title: "How to Build a Research Agent with n8n and Vector Databases",
-    date: "July 18, 2024",
-    link: "/blog",
-  },
-];
+// --- Reactive State for Dynamic Content ---
+const featuredCourses = ref([]);
+const recentPosts = ref([]);
+const coursesLoading = ref(true);
+const coursesError = ref(null);
+const blogLoading = ref(true);
+const blogError = ref(null);
+
+// --- Methods ---
+const formatDate = (timestamp) => {
+  if (!timestamp || !timestamp.toDate) return 'N/A';
+  return timestamp.toDate().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+};
+
+const formatPrice = (price, currency = 'NGN') => {
+  if (typeof price !== 'number') return 'N/A';
+  return new Intl.NumberFormat('en-NG', { style: 'currency', currency }).format(price / 100);
+};
 
 // ===================================================================================
-//  LIFECYCLE HOOKS & ANIMATIONS
+//  DEFINITIVE ANIMATION FIX
 // ===================================================================================
 
+/**
+ * The core animation setup function.
+ */
+function initScrollAnimations() {
+  const animatedElements = document.querySelectorAll(".home-page-wrapper .animate-on-scroll");
+  if (animatedElements.length === 0) return;
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("is-visible");
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  animatedElements.forEach((el) => observer.observe(el));
+}
+
+/**
+ * Watches the data arrays. When they change (from empty to populated),
+ * it waits for the DOM to update and then re-runs the animation setup.
+ */
+watch([featuredCourses, recentPosts], async () => {
+  await nextTick();
+  initScrollAnimations();
+});
+
+// --- Lifecycle Hook & Data Fetching ---
 onMounted(() => {
+  const fetchCourses = async () => {
+    try {
+      coursesLoading.value = true;
+      featuredCourses.value = await getFeaturedCourses();
+    } catch (err) {
+      coursesError.value = err;
+    } finally {
+      coursesLoading.value = false;
+    }
+  };
+
+  const fetchPosts = async () => {
+    try {
+      blogLoading.value = true;
+      recentPosts.value = await getRecentBlogPosts(3);
+    } catch (err) {
+      blogError.value = err;
+    } finally {
+      blogLoading.value = false;
+    }
+  };
+
+  fetchCourses();
+  fetchPosts();
   initHeroAnimation();
+  // We still call it here for the static elements on the page.
+  // The 'watch' will handle the dynamic ones once the data arrives.
   initScrollAnimations();
 });
 
 function initHeroAnimation() {
   if (typeof window.anime === "undefined") return;
-  window.anime({
-    targets: ".animate-hero",
-    translateY: [20, 0],
-    opacity: [0, 1],
-    delay: window.anime.stagger(150, { start: 300 }),
-    duration: 800,
-    easing: "easeOutExpo",
-  });
-}
-
-function initScrollAnimations() {
-  const animatedElements = document.querySelectorAll(".animate-on-scroll");
-  const observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
-        }
-      });
-    },
-    { threshold: 0.1 }
-  );
-  animatedElements.forEach((el) => observer.observe(el));
+  window.anime({ targets: ".animate-hero", translateY: [20, 0], opacity: [0, 1], delay: window.anime.stagger(150, { start: 300 }), duration: 800, easing: "easeOutExpo" });
 }
 </script>
 
 <style scoped>
-/* 
-  The 'scoped' attribute ensures these styles ONLY apply to this HomeView.vue component.
-  All styles below are a direct migration of your previous HomePage.css.
-*/
-
+/* All styles from the previous HomeView.vue are preserved here, including the new error message styles. */
 .home-page-wrapper {
   background-color: var(--dark-navy);
   color: var(--text-primary-light);
   overflow-x: hidden;
 }
-
-/* --- Hero Section --- */
 .hero {
   text-align: center;
   padding: 6rem 0;
@@ -477,8 +460,6 @@ function initScrollAnimations() {
   opacity: 0;
   transform: translateY(20px);
 }
-
-/* --- Grid Layouts --- */
 .courses-grid,
 .features-grid,
 .testimonials-grid,
@@ -487,13 +468,9 @@ function initScrollAnimations() {
   grid-template-columns: 1fr;
   gap: 1.5rem;
 }
-
-/* --- Section-Specific Styles --- */
 .why-us-section {
   background-color: var(--dark-blue-bg);
 }
-
-/* Course Card */
 .course-card {
   background-color: var(--dark-blue-card);
   border: 1px solid var(--dark-border);
@@ -535,8 +512,6 @@ function initScrollAnimations() {
   width: 100%;
   text-align: center;
 }
-
-/* Feature Card */
 .feature-card {
   background-color: var(--dark-blue-card);
   padding: 2rem;
@@ -549,8 +524,6 @@ function initScrollAnimations() {
 .feature-card p {
   margin-bottom: 0;
 }
-
-/* Testimonial Card */
 .testimonial-card {
   background-color: var(--dark-blue-card);
   padding: 2rem;
@@ -580,8 +553,6 @@ function initScrollAnimations() {
 .author-title {
   font-size: 0.875rem;
 }
-
-/* Blog Card */
 .blog-post-card {
   background-color: var(--dark-blue-card);
   border: 1px solid var(--dark-border);
@@ -609,8 +580,6 @@ function initScrollAnimations() {
 .blog-post-card-date {
   font-size: 0.875rem;
 }
-
-/* Final CTA Section */
 #cta {
   text-align: center;
   background: linear-gradient(to top, var(--dark-blue-bg), var(--dark-navy));
@@ -626,8 +595,6 @@ function initScrollAnimations() {
   font-size: 1.125rem;
   padding: 1rem 2.5rem;
 }
-
-/* Animation Utility Class */
 .animate-on-scroll {
   opacity: 0;
   transform: translateY(30px);
@@ -637,8 +604,22 @@ function initScrollAnimations() {
   opacity: 1;
   transform: translateY(0);
 }
-
-/* Desktop Responsive Styles */
+.loader-small,
+.error-small,
+.no-data-message {
+  text-align: center;
+  padding: 3rem;
+  font-size: 1.1rem;
+}
+.error-small {
+  color: var(--error-color);
+}
+.error-details {
+  font-size: 0.875rem;
+  color: var(--text-secondary-light);
+  margin-top: 0.5rem;
+  font-style: italic;
+}
 @media (min-width: 768px) {
   .hero {
     padding: 8rem 0;
@@ -667,4 +648,3 @@ function initScrollAnimations() {
   }
 }
 </style>
-

@@ -1,27 +1,37 @@
-<!-- /src/views/SinglePostView.vue - FINAL, ENHANCED VERSION -->
+<!-- /src/views/SinglePostView.vue - FINAL, LIVE-DATA VERSION -->
 
 <template>
-  <!-- 
-    ==========================================================================
-    TEMPLATE / HTML STRUCTURE
-    ==========================================================================
-    This section is a direct migration of your SinglePostPage.html file.
-    Vue's conditional rendering ('v-if') is used to safely display content
-    only after it has been successfully fetched.
-  -->
   <div class="single-post-wrapper">
-    <main class="container">
-      <!-- 
-        This is a conditional rendering block. The entire article will only be
-        rendered if the 'post' data object is not null.
-      -->
-      <article v-if="post" id="post-content-container">
+    <!-- 1. The Loading State -->
+    <div v-if="isLoading" class="page-loader-container">
+      <div class="spinner">
+        <img
+          src="../assets/images/nexus-logo-light.png"
+          alt="Loading..."
+          class="spinner-logo"
+        />
+      </div>
+    </div>
+
+    <!-- 2. The Error/Not Found State -->
+    <div v-else-if="error" class="error-message container">
+      <h2>Post Not Found</h2>
+      <p>
+        We couldn't find the article you were looking for. It may have been
+        moved or deleted.
+      </p>
+      <RouterLink to="/blog" class="btn btn-primary">Back to Blog</RouterLink>
+    </div>
+
+    <!-- 3. The Ideal State (with data) -->
+    <main v-else-if="post" class="container">
+      <article>
         <!-- Article Header -->
         <header class="post-header">
           <p class="post-category">{{ post.category }}</p>
           <h1 class="post-title">{{ post.title }}</h1>
           <div class="post-meta">
-            <span>Published on {{ post.date }}</span>
+            <span>Published on {{ formatDate(post.publishedAt) }}</span>
           </div>
         </header>
 
@@ -32,26 +42,16 @@
 
         <!-- 
           Article Body
-          'v-html' is a Vue directive that allows us to render raw HTML content.
-          This is necessary because our blog post content includes HTML tags (<h2>, <p>, etc.).
+          'v-html' is used to render the raw HTML content from Firestore.
         -->
         <div class="post-body" v-html="post.content"></div>
       </article>
 
-      <!-- A loading message is shown while the post data is being fetched. -->
-      <div v-else class="page-loader-container">
-        <div class="spinner"></div>
-      </div>
-
       <!-- Post Actions Widget (Like & Share) -->
-      <section v-if="post" id="post-actions-container" class="container">
+      <section class="post-actions-container">
         <div class="post-actions-widget">
-          <!-- Liking Widget -->
+          <!-- Liking Widget (UI Demo) -->
           <div class="like-widget">
-            <!-- 
-              The '@click' directive calls our 'toggleLike' method.
-              The ':class' binding dynamically adds the 'liked' class.
-            -->
             <button
               @click="toggleLike"
               :class="{ liked: isLiked }"
@@ -66,20 +66,10 @@
             </button>
             <span class="like-count">{{ likeCount }}</span>
           </div>
-
-          <!-- Sharing Widget -->
+          <!-- Sharing Widget (Fully Functional) -->
           <div class="share-widget">
             <h4 class="share-widget-title">Share:</h4>
-            <!-- 'v-if' is used for feature detection. The mobile button shows only if the Web Share API is available. -->
-            <button
-              v-if="canShare"
-              @click="sharePost"
-              class="btn btn-primary mobile-share-button"
-            >
-              Share
-            </button>
-            <!-- The desktop buttons show as a fallback if the Web Share API is not available. -->
-            <div v-else class="share-buttons">
+            <div class="share-buttons">
               <a
                 :href="shareLinks.twitter"
                 target="_blank"
@@ -89,17 +79,6 @@
                 ><svg viewBox="0 0 24 24">
                   <path
                     d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"
-                  /></svg
-              ></a>
-              <a
-                :href="shareLinks.facebook"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="share-facebook"
-                aria-label="Share on Facebook"
-                ><svg viewBox="0 0 24 24">
-                  <path
-                    d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3V2z"
                   /></svg
               ></a>
               <a
@@ -125,8 +104,8 @@
         </div>
       </section>
 
-      <!-- Comments Section -->
-      <section v-if="post" id="comments-section" class="container">
+      <!-- Comments Section (UI Demo) -->
+      <section class="comments-section">
         <h2 class="section-title">Join the Discussion</h2>
         <div class="comment-form-container">
           <textarea placeholder="Add a comment..." disabled></textarea>
@@ -142,28 +121,24 @@
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { useRoute } from "vue-router"; // Vue Router's hook for accessing route information
-import { allBlogPosts } from "../services/mockData.js";
+import { useRoute, RouterLink } from "vue-router";
+import { getBlogPostById } from "@/services/db.js";
 
-// ===================================================================================
-//  COMPONENT DATA & STATE
-// ===================================================================================
+// --- Component State ---
+const route = useRoute();
+const postId = ref(route.params.id);
+const post = ref(null);
+const isLoading = ref(true);
+const error = ref(null);
 
-const route = useRoute(); // Get access to the current route object
-const postId = ref(route.params.id); // Get the post ID from the URL (e.g., /blog/{id})
-const post = ref(null); // This will hold the data for our specific blog post
-
-// --- Interactivity State ---
+// *** THE DEFINITIVE FIX IS HERE ***
+// All reactive state variables must be declared with 'ref'.
 const isLiked = ref(false);
-const likeCount = ref(Math.floor(Math.random() * 100)); // Start with a random number of likes
-const canShare = ref(false); // Will be set to true if the Web Share API is available
+const likeCount = ref(Math.floor(Math.random() * 100)); // Start with a random number
+// We can now safely check navigator.share and assign the result to our ref.
+const canShare = ref(navigator.share ? true : false);
 
-// ===================================================================================
-//  COMPUTED PROPERTIES
-// ===================================================================================
-
-// This computed property generates the URLs for the desktop share buttons.
-// It automatically updates if the page URL or post title changes.
+// --- Computed Properties ---
 const shareLinks = computed(() => {
   if (!post.value) return {};
   const url = window.location.href;
@@ -181,22 +156,12 @@ const shareLinks = computed(() => {
   };
 });
 
-// ===================================================================================
-//  METHODS & LIFECYCLE HOOKS
-// ===================================================================================
-
-/**
- * Toggles the liked state of the post and updates the count.
- * This is a UI-only demonstration for now.
- */
+// --- Methods ---
 function toggleLike() {
   isLiked.value = !isLiked.value;
   likeCount.value += isLiked.value ? 1 : -1;
 }
 
-/**
- * Uses the modern Web Share API to open the native device sharing menu.
- */
 async function sharePost() {
   if (!post.value) return;
   try {
@@ -210,13 +175,9 @@ async function sharePost() {
   }
 }
 
-/**
- * Copies the current page URL to the user's clipboard.
- */
 function copyLink(e) {
   const button = e.currentTarget;
   navigator.clipboard.writeText(window.location.href).then(() => {
-    // Provide visual feedback that the link was copied
     const originalContent = button.innerHTML;
     button.innerHTML =
       '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
@@ -226,15 +187,32 @@ function copyLink(e) {
   });
 }
 
-// 'onMounted' runs after the component is rendered. It's the perfect place to fetch
-// data for the page and initialize features.
-onMounted(() => {
-  // Find the correct blog post from our mock data service using the ID from the URL.
-  post.value = allBlogPosts.find((p) => p.id === postId.value);
+const formatDate = (timestamp) => {
+  if (!timestamp || !timestamp.toDate) return "Not available";
+  return timestamp
+    .toDate()
+    .toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+};
 
-  // Feature detect for the Web Share API.
-  if (navigator.share) {
-    canShare.value = true;
+// --- Lifecycle Hook & Data Fetching ---
+onMounted(async () => {
+  try {
+    isLoading.value = true;
+    const fetchedPost = await getBlogPostById(postId.value);
+    if (fetchedPost) {
+      post.value = fetchedPost;
+    } else {
+      throw new Error("Post not found");
+    }
+  } catch (err) {
+    console.error("Failed to load post:", err);
+    error.value = err;
+  } finally {
+    isLoading.value = false;
   }
 });
 </script>
@@ -468,5 +446,20 @@ onMounted(() => {
   .post-title {
     font-size: 3.5rem;
   }
+}
+
+.error-message {
+  text-align: center;
+  padding: 4rem 0;
+  color: var(--text-primary-light);
+}
+.error-message h1 {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+.error-message p {
+  font-size: 1.25rem;
+  color: var(--text-secondary-light);
+  margin-bottom: 2rem;
 }
 </style>

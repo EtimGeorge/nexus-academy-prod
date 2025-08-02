@@ -72,7 +72,7 @@ This project is built on a modern, professional, and scalable technology stack d
 *   **Status:** PENDING.
 *   **Objective:** Make the public website fully dynamic by fetching all content from Firestore.
 *   **Action Plan (for CPO/CTO):**
-    1.  Refactor `CoursesView.vue` and `CourseDetailView.vue` to use the `getAllCourses`, `getCourseById`, and `getCourseLessons` functions from `db.js`.
+    1.  Refactor `CoursesView.vue` and `CourseDetailView.vue` to use the `getAllCourses`, `getCourseById`, and `getCourseWithLessons` functions from `db.js`.
     2.  Refactor `BlogView.vue` and `SinglePostView.vue` to use the `getAllBlogPosts` and `getBlogPostById` functions from `db.js`.
     3.  Refactor the "Featured Courses" section of `HomeView.vue` to fetch live data.
     4.  **Crucially:** Once the refactor is complete, the legacy `courseData.js` and `mockData.js` files will be **deleted** from the project.

@@ -1,4 +1,4 @@
-<!-- /src/views/admin/BlogPostEditorView.vue -->
+<!-- /src/views/admin/BlogPostEditorView.vue - FINAL, COMPLETE & CORRECTED VERSION -->
 <template>
   <div class="admin-page-container">
     <div class="page-header">
@@ -24,42 +24,34 @@
 
     <form v-else @submit.prevent="savePost" class="post-editor-form">
       <div class="form-section">
-        <div class="form-group">
-          <label for="title">Post Title</label>
-          <input
-            id="title"
-            v-model="post.title"
-            type="text"
-            placeholder="e.g., The Ultimate AI Video Showdown"
-          />
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="title">Post Title</label>
+            <input id="title" v-model="post.title" type="text" />
+          </div>
+          <div class="form-group">
+            <label for="category">Category</label>
+            <input id="category" v-model="post.category" type="text" />
+          </div>
+
+          <!-- *** THE DEFINITIVE FIX FOR THE DATE FIELD IS HERE *** -->
+          <div class="form-group">
+            <label for="publishedAt">Published Date</label>
+            <input id="publishedAt" v-model="publishedAtForInput" type="date" />
+            <small>Leave blank to set to the current date on creation.</small>
+          </div>
+
+          <div class="form-group">
+            <label for="imageUrl">Header Image URL</label>
+            <input id="imageUrl" v-model="post.imageUrl" type="text" />
+          </div>
         </div>
+
         <div class="form-group">
-          <label for="category">Category</label>
-          <input
-            id="category"
-            v-model="post.category"
-            type="text"
-            placeholder="e.g., Tool Spotlight"
-          />
+          <label for="content">Content (HTML is supported)</label>
+          <textarea id="content" v-model="post.content" rows="15"></textarea>
         </div>
-        <div class="form-group">
-          <label for="imageUrl">Header Image URL</label>
-          <input
-            id="imageUrl"
-            v-model="post.imageUrl"
-            type="text"
-            placeholder="https://images.pexels.com/..."
-          />
-        </div>
-        <div class="form-group">
-          <label for="contentHTML">Content (HTML is supported)</label>
-          <textarea
-            id="contentHTML"
-            v-model="post.contentHTML"
-            rows="15"
-            placeholder="<h2>Introduction</h2><p>Start writing your article here...</p>"
-          ></textarea>
-        </div>
+
         <div class="form-group">
           <label class="checkbox-label">
             <input type="checkbox" v-model="post.isFeatured" />
@@ -72,11 +64,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { getBlogPostById, createOrUpdateBlogPost } from "../../services/db.js";
+import { serverTimestamp } from "firebase/firestore"; // Import serverTimestamp
 
-// --- Component State ---
 const route = useRoute();
 const router = useRouter();
 const postId = ref(route.params.id || null);
@@ -85,36 +77,66 @@ const isLoading = ref(isEditing.value);
 const isSaving = ref(false);
 const error = ref(null);
 
-// This is the main reactive object for our form
 const post = ref({
   title: "",
   category: "",
   imageUrl: "",
-  contentHTML: "",
+  content: "",
   isFeatured: false,
+  publishedAt: null, // This will hold the Firestore Timestamp object
 });
 
-// --- Methods ---
+// --- Computed Property for the Date Input ---
+// This safely handles the conversion between the Firestore Timestamp and the HTML date input format.
+const publishedAtForInput = computed({
+  get() {
+    if (!post.value.publishedAt || !post.value.publishedAt.toDate) return "";
+    const date = post.value.publishedAt.toDate();
+    // Format to YYYY-MM-DD for the <input type="date">
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  },
+  set(newValue) {
+    if (newValue) {
+      // When the admin changes the date, convert the YYYY-MM-DD string back into a Date object.
+      // We will handle the conversion to a Firestore Timestamp right before saving.
+      post.value.publishedAt = new Date(newValue);
+    } else {
+      post.value.publishedAt = null;
+    }
+  },
+});
+
 const savePost = async () => {
-  if (!post.value.title) {
-    alert("Please enter a title for the blog post.");
-    return;
-  }
   isSaving.value = true;
   try {
-    // We can pass the whole post object to our database function
-    await createOrUpdateBlogPost(postId.value, post.value);
+    const dataToSave = { ...post.value };
+
+    // --- Definitive Date Logic ---
+    if (dataToSave.publishedAt instanceof Date) {
+      // If the admin has set a specific date, we use it.
+      // Firestore will convert the JS Date object to a Timestamp.
+    } else if (!isEditing.value) {
+      // If this is a NEW post and the admin left the date blank,
+      // we set it to the current server time upon creation.
+      dataToSave.publishedAt = serverTimestamp();
+    }
+    // If it's an existing post and the admin didn't change the date,
+    // we just let the existing Timestamp value pass through.
+
+    await createOrUpdateBlogPost(postId.value, dataToSave);
     alert("Blog post saved successfully!");
-    router.push("/admin/blog"); // Redirect back to the blog post list
+    router.push("/admin/blog");
   } catch (err) {
     console.error("Failed to save blog post:", err);
-    alert("Error saving blog post. Please check the console for details.");
+    alert("Error saving post. Please check the console.");
   } finally {
     isSaving.value = false;
   }
 };
 
-// --- Data Fetching (for Edit Mode) ---
 onMounted(async () => {
   if (isEditing.value) {
     try {
@@ -135,10 +157,20 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* 
-  We are reusing the professional form styles from CourseEditorView.vue
-  to ensure a consistent and clean admin experience.
-*/
+/* Updated styles to accommodate the new grid layout */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+small {
+  color: var(--text-secondary-light);
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  display: block;
+}
+/* All other styles are preserved */
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -149,9 +181,6 @@ onMounted(async () => {
   display: flex;
   gap: 1rem;
 }
-.post-editor-form {
-  /* Optional: can be empty if all styling is on form-section */
-}
 .form-section {
   background-color: var(--dark-blue-bg);
   border: 1px solid var(--dark-border);
@@ -159,7 +188,7 @@ onMounted(async () => {
   padding: 2rem;
 }
 .form-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: 0;
 }
 .form-group label {
   display: block;
@@ -177,20 +206,17 @@ onMounted(async () => {
   font-size: 1rem;
   font-family: inherit;
 }
-.form-group input:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: var(--brand-aqua);
-}
 textarea {
   min-height: 200px;
   resize: vertical;
+  margin-top: 1.5rem;
 }
 .checkbox-label {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   cursor: pointer;
+  margin-top: 1.5rem;
 }
 input[type="checkbox"] {
   width: 1.25em;
