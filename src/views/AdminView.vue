@@ -1,6 +1,23 @@
 <!-- /src/views/AdminView.vue - FINAL, PRODUCTION-READY VERSION -->
 <template>
   <div class="admin-layout">
+
+
+      <!-- 
+      ==========================================================================
+      SIDEBAR OVERLAY (FOR MOBILE)
+      This new element is a semi-transparent background that appears on mobile
+      when the sidebar is open. Clicking it will close the sidebar.
+      ==========================================================================
+    -->
+    <div 
+      id="sidebar-overlay" 
+      class="sidebar-overlay"
+      :class="{ 'is-active': isSidebarOpen }"
+      @click="closeSidebar"
+    ></div>
+
+
     <!-- 
       ==========================================================================
       ADMIN SIDEBAR
@@ -14,7 +31,11 @@
         <!-- Sidebar Header: Logo and Title -->
         <header class="sidebar-header">
           <RouterLink to="/" class="logo-link">
-            <img src="@/assets/images/nexus-logo-light.png" alt="Nexus Academy Logo" class="logo-image">
+            <img
+              src="@/assets/images/nexus-logo-light.png"
+              alt="Nexus Academy Logo"
+              class="logo-image"
+            />
           </RouterLink>
           <h2 class="admin-title">Admin Panel</h2>
         </header>
@@ -22,10 +43,18 @@
         <!-- Main Admin Navigation -->
         <nav class="admin-nav">
           <RouterLink to="/admin" class="admin-nav-link">Dashboard</RouterLink>
-          <RouterLink to="/admin/courses" class="admin-nav-link">Courses</RouterLink>
-          <RouterLink to="/admin/blog" class="admin-nav-link">Blog Posts</RouterLink>
-          <RouterLink to="/admin/enrollments" class="admin-nav-link">Enrollments</RouterLink>
-          <RouterLink to="/admin/users" class="admin-nav-link">Users</RouterLink>
+          <RouterLink to="/admin/courses" class="admin-nav-link"
+            >Courses</RouterLink
+          >
+          <RouterLink to="/admin/blog" class="admin-nav-link"
+            >Blog Posts</RouterLink
+          >
+          <RouterLink to="/admin/enrollments" class="admin-nav-link"
+            >Enrollments</RouterLink
+          >
+          <RouterLink to="/admin/users" class="admin-nav-link"
+            >Users</RouterLink
+          >
         </nav>
 
         <!-- User/Session Management at the bottom of the sidebar -->
@@ -37,8 +66,15 @@
             <span class="admin-username">{{ userDisplayName }}</span>
           </div>
           <hr class="nav-divider" />
-          <a href="#" @click.prevent="handleLogout" class="admin-nav-link logout-link">Logout</a>
-          <RouterLink to="/" class="admin-nav-link return-link">Return to Site</RouterLink>
+          <a
+            href="#"
+            @click.prevent="handleLogout"
+            class="admin-nav-link logout-link"
+            >Logout</a
+          >
+          <RouterLink to="/" class="admin-nav-link return-link"
+            >Return to Site</RouterLink
+          >
         </div>
       </div>
     </aside>
@@ -56,13 +92,18 @@
         to toggle the sidebar.
       -->
       <header class="admin-mobile-header">
-        <button class="hamburger" @click="toggleSidebar" :class="{ 'is-active': isSidebarOpen }" aria-label="Toggle Menu">
+        <button
+          class="hamburger"
+          @click="toggleSidebar"
+          :class="{ 'is-active': isSidebarOpen }"
+          aria-label="Toggle Menu"
+        >
           <span></span>
           <span></span>
           <span></span>
         </button>
       </header>
-      
+
       <!-- 
         Main Content Pane:
         The nested <RouterView> will render the component for the current
@@ -76,13 +117,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { RouterLink, RouterView, useRouter } from 'vue-router';
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import { RouterLink, RouterView, useRouter } from "vue-router";
 
 // We now import 'auth' from its correct source, 'firebase.js'.
 // We import the 'logout' function from its correct source, 'auth.js'.
-import { auth } from '../services/firebase.js'; 
-import { logout } from '../services/auth.js'; 
+import { auth } from "../services/firebase.js";
+import { logout } from "../services/auth.js";
 
 // --- Reactive State ---
 const isSidebarOpen = ref(false);
@@ -94,10 +135,22 @@ const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value;
 };
 
+// **NEW METHOD** to explicitly close the sidebar.
+const closeSidebar = () => {
+  isSidebarOpen.value = false;
+};
+
+// **NEW METHOD** to handle keyboard events (e.g., the Escape key).
+const handleKeydown = (e) => {
+  if (e.key === 'Escape' && isSidebarOpen.value) {
+    closeSidebar();
+  }
+};
+
 const handleLogout = async () => {
   try {
     await logout();
-    router.push('/login'); // Redirect to login page after logout
+    router.push("/login"); // Redirect to login page after logout
   } catch (error) {
     console.error("Logout failed:", error);
     alert("Failed to log out. Please try again.");
@@ -107,27 +160,42 @@ const handleLogout = async () => {
 // --- Computed Properties for UI ---
 // Safely gets the user's display name or falls back to their email.
 const userDisplayName = computed(() => {
-  return currentUser.value?.displayName || currentUser.value?.email || 'Admin';
+  return currentUser.value?.displayName || currentUser.value?.email || "Admin";
 });
 
 // Creates initials from the display name or email for the avatar.
 const userInitials = computed(() => {
   const name = userDisplayName.value;
-  return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .substring(0, 2)
+    .toUpperCase();
 });
 
 // --- Lifecycle Hooks ---
 // Updates the currentUser ref if the auth state changes while the user is on the page.
 onMounted(() => {
-  auth.onAuthStateChanged(user => {
+  auth.onAuthStateChanged((user) => {
     currentUser.value = user;
   });
+   // **NEW:** Add event listener for the Escape key when the component is created.
+  window.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+  // **NEW & CRITICAL:** Remove the event listener when the component is destroyed
+  // to prevent memory leaks. This is an industry-standard best practice.
+  window.removeEventListener('keydown', handleKeydown);
 });
 </script>
 
 <style scoped>
 /* 
-  This CSS is now production-ready, mobile-first, and anticipates all features.
+  ==========================================================================
+  STYLES (Mobile-First & Production-Ready)
+  ==========================================================================
 */
 .admin-layout {
   display: flex;
@@ -136,43 +204,138 @@ onMounted(() => {
   color: var(--text-primary-light);
 }
 
+/* --- Sidebar Overlay (NEW) --- */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0; /* A modern shorthand for top:0, right:0, bottom:0, left:0 */
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1009; /* Just below the sidebar */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease-in-out;
+}
+.sidebar-overlay.is-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+
 /* --- Admin Sidebar (Mobile First) --- */
 .admin-sidebar {
   position: fixed;
   top: 0;
-  left: -100%; /* Start off-screen */
+  left: -100%; /* Start off-screen on mobile */
   width: 280px;
   height: 100%;
   z-index: 1010;
   background-color: var(--dark-blue-bg);
   border-right: 1px solid var(--dark-border);
   transition: left 0.3s ease-in-out;
-  display: flex; /* For inner scrolling */
+  display: flex;
+  flex-direction: column;
 }
 .admin-sidebar.is-active {
   left: 0;
 }
+/* *** THE DEFINITIVE SCROLLING FIX IS HERE *** */
 .sidebar-inner {
   width: 100%;
   display: flex;
   flex-direction: column;
   padding: 1.5rem;
+  /* This prevents the entire sidebar from trying to scroll */
+  overflow: hidden; 
 }
-.sidebar-header { margin-bottom: 2rem; text-align: center; }
-.logo-link { display: inline-block; margin-bottom: 1rem; }
-.logo-image { height: 40px; }
-.admin-title { font-size: 1rem; font-weight: var(--font-semibold); color: var(--text-secondary-light); text-transform: uppercase; letter-spacing: 0.5px; }
-.admin-nav { display: flex; flex-direction: column; gap: 0.5rem; }
-.admin-nav-link { display: block; padding: 0.75rem 1rem; border-radius: 6px; font-weight: var(--font-semibold); transition: background-color 0.2s, color 0.2s; }
-.admin-nav-link:hover { background-color: var(--dark-blue-card); color: white; }
-.admin-nav-link.router-link-exact-active { background-color: var(--brand-aqua); color: var(--dark-navy); }
-.nav-divider { border: none; border-top: 1px solid var(--dark-border); margin: 1rem 0; }
-.sidebar-footer { margin-top: auto; }
-.admin-user-profile { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem; }
-.admin-avatar { width: 32px; height: 32px; border-radius: 50%; background-color: var(--brand-bright-blue); display: flex; justify-content: center; align-items: center; font-weight: var(--font-bold); font-size: 0.875rem; }
-.admin-username { font-weight: var(--font-semibold); }
-.logout-link, .return-link { color: var(--text-secondary-light); }
-.logout-link:hover, .return-link:hover { background-color: var(--dark-blue-card); color: white; }
+.admin-nav {
+  /* This tells the nav section to take up all available vertical space */
+  flex: 1; 
+  /* This enables scrolling ONLY on this nav section if its content is too long */
+  overflow-y: auto; 
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
+.sidebar-footer {
+  /* This ensures the footer is always at the bottom and never scrolls away */
+  margin-top: auto; 
+  flex-shrink: 0;
+}
+/* *** END OF SCROLLING FIX *** */
+
+/* --- Sidebar Header --- */
+.sidebar-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+.logo-link {
+  display: inline-block;
+  margin-bottom: 1rem;
+}
+.logo-image {
+  height: 40px;
+}
+.admin-title {
+  font-size: 1rem;
+  font-weight: var(--font-semibold);
+  color: var(--text-secondary-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* --- Admin Nav --- */
+.admin-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.admin-nav-link {
+  display: block;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-weight: var(--font-semibold);
+  transition: background-color 0.2s, color 0.2s;
+}
+.admin-nav-link:hover {
+  background-color: var(--dark-blue-card);
+  color: white;
+}
+.admin-nav-link.router-link-exact-active {
+  background-color: var(--brand-aqua);
+  color: var(--dark-navy);
+}
+
+/* --- User Profile & Footer --- */
+.sidebar-footer {
+  margin-top: auto;
+}
+.admin-user-profile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+}
+.admin-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--brand-bright-blue);
+  color: var(--dark-navy);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: var(--font-bold);
+  font-size: 0.875rem;
+}
+.admin-username {
+  font-weight: var(--font-semibold);
+}
+.logout-link,
+.return-link {
+  color: var(--text-secondary-light);
+}
+.logout-link:hover,
+.return-link:hover {
+  background-color: var(--dark-blue-card);
+  color: white;
+}
 
 /* --- Main Content Wrapper --- */
 .admin-content-wrapper {
@@ -181,7 +344,7 @@ onMounted(() => {
   flex-direction: column;
 }
 
-/* --- Mobile Header --- */
+/* --- Mobile Header & Hamburger Button --- */
 .admin-mobile-header {
   display: flex;
   align-items: center;
@@ -190,18 +353,38 @@ onMounted(() => {
   border-bottom: 1px solid var(--dark-border);
 }
 
-/* Hamburger Button (copied from TheNavbar) */
 .hamburger {
-  display: flex; flex-direction: column; justify-content: space-around;
-  width: 2rem; height: 2rem; background: transparent;
-  border: none; cursor: pointer; padding: 0; z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  width: 2rem;
+  height: 2rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  z-index: 10;
 }
-.hamburger span { width: 2rem; height: 3px; background: white; border-radius: 10px; transition: all 0.3s linear; position: relative; transform-origin: 1px; }
-.hamburger.is-active span:nth-child(1) { transform: rotate(45deg); }
-.hamburger.is-active span:nth-child(2) { opacity: 0; transform: translateX(20px); }
-.hamburger.is-active span:nth-child(3) { transform: rotate(-45deg); }
+.hamburger span {
+  width: 2rem;
+  height: 3px;
+  background: white;
+  border-radius: 10px;
+  transition: all 0.3s linear;
+  position: relative;
+  transform-origin: 1px;
+}
+.hamburger.is-active span:nth-child(1) {
+  transform: rotate(45deg);
+}
+.hamburger.is-active span:nth-child(2) {
+  opacity: 0;
+  transform: translateX(20px);
+}
+.hamburger.is-active span:nth-child(3) {
+  transform: rotate(-45deg);
+}
 
-/* --- Main Content Area --- */
 .admin-main-content {
   flex: 1;
   padding: 2rem;
@@ -213,9 +396,6 @@ onMounted(() => {
   .admin-sidebar {
     position: static; /* Sidebar becomes a permanent column */
     left: 0;
-  }
-  .admin-content-wrapper {
-    /* Adjust based on sidebar width if needed */
   }
   .admin-mobile-header {
     display: none; /* Hide mobile header on desktop */

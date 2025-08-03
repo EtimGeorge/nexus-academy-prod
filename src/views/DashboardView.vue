@@ -60,10 +60,19 @@
             active-class="active"
             >Settings</RouterLink
           >
-          <a href="#" @click.prevent="handleLogout" class="dashboard-nav-link"
+          <!-- <a href="#" @click.prevent="handleLogout" class="dashboard-nav-link"
             >Logout</a
-          >
+          > -->
         </nav>
+
+          <!-- Footer section of the sidebar -->
+        <div class="sidebar-footer">
+          <hr class="nav-divider" />
+          <!-- A clear link to return to the main public site -->
+          <RouterLink to="/" class="dashboard-nav-link return-link">Return to Main Site</RouterLink>
+          <!-- The logout link, as specified in your blueprint -->
+          <a href="#" @click.prevent="handleLogout" class="dashboard-nav-link logout-link">Logout</a>
+        </div>
       </aside>
 
       <!-- Main Content Area -->

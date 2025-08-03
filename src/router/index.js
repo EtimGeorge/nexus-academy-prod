@@ -1,18 +1,24 @@
-// /src/router/index.js - FINAL, SECURE, AND COMPLETE VERSION
+// /src/router/index.js - FINAL, DEFINITIVE, AND SECURE VERSION
 
 import { createRouter, createWebHashHistory } from "vue-router";
+// We now import the auth object and our new userStore helpers.
 import { auth } from "../services/firebase.js";
-import { getUserProfile } from "../services/db.js";
+import { userProfile, ensureUserProfile } from "../services/userStore.js";
 
-// --- Import our Layout Components ---
+// --- Layout Components ---
+// This is the correct, professional way to structure an app with different page layouts.
 import PublicLayout from "../layouts/PublicLayout.vue";
 import AuthLayout from "../layouts/AuthLayout.vue";
 import DashboardView from "../views/DashboardView.vue";
 import AdminView from "../views/AdminView.vue";
+import CoursePlayerView from "../views/CoursePlayerView.vue";
 
+// ===================================================================================
+//  ROUTE DEFINITIONS
+//  This is the complete and final list of all routes in our application.
+// ===================================================================================
 const routes = [
-  // --- Route Group 1: Public Pages ---
-  // All routes in this group will be rendered inside the PublicLayout.vue component.
+  // --- Route Group 1: Public Pages (with Navbar/Footer) ---
   {
     path: "/",
     component: PublicLayout,
@@ -67,14 +73,12 @@ const routes = [
         name: "privacy",
         component: () => import("../views/PrivacyView.vue"),
       },
-      // { path: "login", name: "login", component: () => import("../views/LoginView.vue") },
-      // { path: "signup", name: "signup", component: () => import("../views/SignupView.vue") },
     ],
   },
 
-  // --- Route Group 2: Standalone Authentication Pages (No Navbar/Footer) ---
+  // --- Route Group 2: Standalone Auth Pages (No Navbar/Footer) ---
   {
-    path: "/auth",
+    path: "/auth", // A parent route for auth pages
     component: AuthLayout,
     children: [
       {
@@ -94,12 +98,11 @@ const routes = [
   {
     path: "/learn/:id",
     name: "course-player",
-    component: () => import("../views/CoursePlayerView.vue"),
+    component: CoursePlayerView,
     meta: { requiresAuth: true },
   },
 
   // --- Route Group 4: Authenticated User Dashboard ---
-  // This route uses the DashboardView.vue component as its layout/shell.
   {
     path: "/dashboard",
     component: DashboardView,
@@ -111,12 +114,12 @@ const routes = [
         component: () => import("../views/dashboard/MyLearning.vue"),
       },
       {
-        path: "/profile",
+        path: "profile",
         name: "profile",
         component: () => import("../views/dashboard/ProfilePage.vue"),
       },
       {
-        path: "/settings",
+        path: "settings",
         name: "settings",
         component: () => import("../views/dashboard/SettingsPage.vue"),
       },
@@ -124,7 +127,6 @@ const routes = [
   },
 
   // --- Route Group 5: Secure Admin Panel ---
-  // This route uses the AdminView.vue component as its layout/shell.
   {
     path: "/admin",
     component: AdminView,
@@ -186,39 +188,31 @@ const router = createRouter({
 });
 
 // ===================================================================================
-//  NAVIGATION GUARD (The Security Checkpoint)
+//  DEFINITIVE NAVIGATION GUARD (The Security Checkpoint)
 // ===================================================================================
-// This 'beforeEach' function runs before every single navigation attempt.
 router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
   const requiresAdmin = to.matched.some((record) => record.meta.requiresAdmin);
+
+  // This is the critical change: ensure we have fetched the user's profile and role
+  // from Firestore before making any security decisions.
+  await ensureUserProfile();
+
   const currentUser = auth.currentUser;
+  const userRole = userProfile.value?.role; // Get the role from our new, reliable store.
 
   if (requiresAuth && !currentUser) {
-    // If the route requires a user to be logged in and they are not,
-    // redirect them to the login page.
+    // If the route is protected and the user is not logged in, redirect to login.
     next({ name: "login" });
-  } else if (requiresAdmin && currentUser) {
-    // If the route requires an admin role and the user IS logged in,
-    // we must check their role in the database.
-    try {
-      const userProfile = await getUserProfile(currentUser.uid);
-      if (userProfile && userProfile.role === "admin") {
-        // If they have the 'admin' role, allow them to proceed.
-        next();
-      } else {
-        // If they do not have the 'admin' role, send them back to the user dashboard.
-        console.warn(
-          `Access denied: User ${currentUser.email} is not an admin.`
-        );
-        next({ name: "dashboard" });
-      }
-    } catch (error) {
-      console.error("Error fetching user profile for admin check:", error);
-      next({ name: "dashboard" }); // On error, deny access for safety.
-    }
+  } else if (requiresAdmin && userRole !== "admin") {
+    // If the route requires admin permissions and the user's role is not 'admin',
+    // deny access and send them to their own dashboard.
+    console.warn(
+      `Access denied: User ${currentUser?.email} does not have admin role.`
+    );
+    next({ name: "dashboard" });
   } else {
-    // If the route doesn't require any special permissions, let them proceed.
+    // Otherwise, the user is authorized, so allow navigation.
     next();
   }
 });
