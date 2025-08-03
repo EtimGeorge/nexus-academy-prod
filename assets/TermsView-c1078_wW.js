@@ -1,4 +1,4 @@
-import{_ as d,o as m,c as n,a as e,t as s,F as p,f as h,i as r}from"./index-Ot6YnaKo.js";const y={class:"legal-page-wrapper"},f={class:"container"},g={class:"legal-content"},v=["innerHTML"],w="July 30, 2024",b={__name:"TermsView",setup(S){const c=[{title:"1. Accounts",content:`
+import{_ as d,o as m,c as n,a as e,t as s,F as p,f as h,i as r}from"./index-DuVCQ5_p.js";const y={class:"legal-page-wrapper"},f={class:"container"},g={class:"legal-content"},v=["innerHTML"],w="July 30, 2024",b={__name:"TermsView",setup(S){const c=[{title:"1. Accounts",content:`
       <p>When you create an account with us, you must provide us information that is accurate, complete, and current at all times. Failure to do so constitutes a breach of the Terms, which may result in immediate termination of your account on our Service.</p>
       <p>You are responsible for safeguarding the password that you use to access the Service and for any activities or actions under your password. You agree not to disclose your password to any third party.</p>
     `},{title:"2. Courses and Enrollment",content:`
