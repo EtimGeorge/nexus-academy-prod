@@ -1,4 +1,4 @@
-// vite.config.js - FINAL, DEPLOYMENT-READY VERSION
+// /vite.config.js - FINAL, DEFINITIVE, AND CORRECT VERSION
 
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
@@ -6,10 +6,10 @@ import vue from "@vitejs/plugin-vue";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  // *** THE DEFINITIVE FIX FOR GITHUB PAGES IS HERE ***
-  // The 'base' option tells Vite that your entire project will be served
-  // from a subdirectory on GitHub, not from the root of the domain.
-  // Replace 'nexus-academy-prod' with your exact repository name.
+  // *** THE DEFINITIVE FIX IS HERE ***
+  // The base path now correctly matches your new repository name.
+  // This will ensure that when Vite builds your project, all the links inside
+  // your index.html will correctly point to /nexus-academy-prod/assets/...
   base: "/nexus-academy-prod/",
 
   plugins: [vue()],

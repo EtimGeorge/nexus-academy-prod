@@ -22,13 +22,16 @@
         Main Desktop & Mobile Navigation
         The ':class' binding dynamically adds 'is-active' for the mobile slide-out menu.
       -->
-      <nav class="main-nav" :class="{ 'is-active': isNavOpen }">
-        <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/courses">Courses</RouterLink>
-        <RouterLink to="/blog">Blog</RouterLink>
-        <RouterLink to="/why-nexus">Why Nexus</RouterLink>
-        <RouterLink to="/about">About</RouterLink>
-        <RouterLink to="/contact">Contact</RouterLink>
+     <nav class="main-nav" :class="{ 'is-active': isNavOpen }">
+        <RouterLink to="/" @click="closeNav">Home</RouterLink>
+        <RouterLink to="/courses" @click="closeNav">Courses</RouterLink>
+        <RouterLink to="/blog" @click="closeNav">Blog</RouterLink>
+        <RouterLink to="/why-nexus" @click="closeNav">Why Nexus</RouterLink>
+        <RouterLink to="/about" @click="closeNav">About</RouterLink>
+        <RouterLink to="/contact" @click="closeNav">Contact</RouterLink>
+
+        <!-- Add this line for the mobile sign-in button -->
+        <RouterLink v-if="!currentUser" to="/login" @click="closeNav" class="btn btn-secondary mobile-signin-btn">Sign In</RouterLink>
       </nav>
 
       <!-- 
@@ -121,6 +124,9 @@ const router = useRouter();
 // --- Methods ---
 const toggleNav = () => {
   isNavOpen.value = !isNavOpen.value;
+};
+const closeNav = () => {
+  isNavOpen.value = false;
 };
 const handleScroll = () => {
   isScrolled.value = window.scrollY > 10;
@@ -335,6 +341,28 @@ onUnmounted(() => {
 }
 .logout-item {
   color: #ef4444;
+}
+
+.mobile-signin-btn {
+  display: none; /* Hidden by default */
+}
+
+@media (max-width: 991px) {
+  .main-nav.is-active .mobile-signin-btn {
+    display: block; /* Show in active mobile nav */
+    margin-top: 1.5rem;
+    font-size: 1.5rem;
+  }
+
+  .header-actions .btn {
+    display: none; /* Hide the original button on mobile */
+  }
+}
+
+@media (min-width: 992px) {
+  .header-actions .btn {
+    display: flex; /* Show the original button on desktop */
+  }
 }
 
 /* --- Desktop Styles --- */
