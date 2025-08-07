@@ -463,3 +463,131 @@ onMounted(async () => {
   margin-bottom: 2rem;
 }
 </style>
+
+<style>
+/* 
+  GLOBAL STYLES FOR V-HTML CONTENT
+  These styles are NOT scoped and will apply to the content rendered by v-html.
+  This ensures that the HTML from the database is styled correctly.
+*/
+
+.post-body h1,
+.post-body h2,
+.post-body h3,
+.post-body h4,
+.post-body h5,
+.post-body h6 {
+  color: var(--text-primary-light);
+  font-family: var(--font-family-headings);
+  margin-top: 2.5em;
+  margin-bottom: 1em;
+  line-height: 1.3;
+}
+
+.post-body h1 {
+  font-size: 2.25rem;
+}
+.post-body h2 {
+  font-size: 1.875rem;
+}
+.post-body h3 {
+  font-size: 1.5rem;
+}
+.post-body h4 {
+  font-size: 1.25rem;
+}
+
+.post-body p {
+  margin-bottom: 1.5em;
+  font-size: 1.125rem;
+  line-height: 1.8;
+  color: var(--text-secondary-light);
+}
+
+.post-body a {
+  color: var(--brand-aqua);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition: border-color 0.3s ease;
+}
+
+.post-body a:hover {
+  border-bottom-color: var(--brand-aqua);
+}
+
+.post-body strong {
+  font-weight: var(--font-semibold);
+  color: var(--text-primary-light);
+}
+
+.post-body em {
+  font-style: italic;
+  color: #cbd5e1; /* A slightly lighter grey for emphasis */
+}
+
+.post-body ul,
+.post-body ol {
+  margin-bottom: 1.5em;
+  padding-left: 2em;
+}
+
+.post-body li {
+  margin-bottom: 0.75em;
+}
+
+.post-body blockquote {
+  margin: 2em 0;
+  padding: 1.5em 2em;
+  border-left: 5px solid var(--brand-aqua);
+  background-color: var(--dark-blue-card);
+  border-radius: 8px;
+  font-style: italic;
+  color: #e2e8f0; /* Lighter text for quotes */
+}
+
+.post-body blockquote p {
+  margin-bottom: 0;
+}
+
+.post-body pre {
+  background-color: #0f172a; /* A very dark blue for code blocks */
+  color: #e2e8f0;
+  padding: 1.5em;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: var(--font-family-mono);
+  font-size: 0.95em;
+  line-height: 1.6;
+}
+
+.post-body code {
+  background-color: var(--dark-blue-card);
+  color: #f472b6; /* A pinkish color for inline code */
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-family: var(--font-family-mono);
+  font-size: 0.9em;
+}
+
+.post-body pre code {
+  background-color: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+.post-body hr {
+  border: 0;
+  height: 1px;
+  background-color: var(--dark-border);
+  margin: 3em 0;
+}
+
+.post-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  margin: 2em 0;
+}
+</style>

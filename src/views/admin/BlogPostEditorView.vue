@@ -81,7 +81,31 @@ const post = ref({
   title: "",
   category: "",
   imageUrl: "",
-  content: "",
+  content: `<h2>This is a Heading 2</h2>
+<p>This is a standard paragraph. It's the backbone of your content. You can <strong>bold text</strong>, <em>italicize text</em>, or even <a href="#">include hyperlinks</a>.</p>
+<blockquote>This is a blockquote. It's perfect for highlighting a quote or a key point. It will stand out from the rest of the text.</blockquote>
+<h3>This is a Heading 3</h3>
+<p>You can also create lists:</p>
+<ul>
+  <li>Unordered list item 1</li>
+  <li>Unordered list item 2</li>
+  <li>Unordered list item 3</li>
+</ul>
+<ol>
+  <li>Ordered list item 1</li>
+  <li>Ordered list item 2</li>
+  <li>Ordered list item 3</li>
+</ol>
+<p>For sharing code snippets, you can use the following:</p>
+<pre><code>&lt;template&gt;
+  &lt;div&gt;Hello, World!&lt;/div&gt;
+&lt;/template&gt;</code></pre>
+<p>You can also use <code>inline code</code> for smaller snippets.</p>
+<hr>
+<p>A horizontal rule can be used to separate sections of your post.</p>
+<img src="https://images.unsplash.com/photo-1618477388954-7852f32655ec?q=80&w=1964&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Example Image">
+<p>Images can also be embedded within the content.</p>
+`,
   isFeatured: false,
   publishedAt: null, // This will hold the Firestore Timestamp object
 });

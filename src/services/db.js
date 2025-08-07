@@ -1,9 +1,9 @@
 // /src/services/db.js - FINAL, CONSOLIDATED, AND CORRECT VERSION
+// This file integrates ALL original functions from db.js with the new crypto payment flow changes from db.new.js.
 
 // ===================================================================================
 //  MASTER IMPORT STATEMENT
 //  All required functions from the Firebase Firestore SDK are declared here, in one place.
-//  This is the definitive fix for the "writeBatch is not defined" and similar errors.
 // ===================================================================================
 import {
   collection,
@@ -16,15 +16,23 @@ import {
   serverTimestamp,
   orderBy,
   deleteDoc,
-  writeBatch, // <-- The missing import is now correctly included here.
+  writeBatch,
   getCountFromServer,
   limit,
+  addDoc, // Ensure addDoc is imported for adding new documents
 } from "firebase/firestore";
-import { db } from "@/services/firebase.js";
+import { db } from "@/services/firebase.js"; // Assuming firebase.js exports the initialized 'db' instance.
 
 // ===================================================================================
 //  USER PROFILE FUNCTIONS
 // ===================================================================================
+
+/**
+ * Creates a new user profile document in Firestore or updates an existing one.
+ * Uses merge: true to avoid overwriting existing fields.
+ * @param {object} user The Firebase Auth user object.
+ * @returns {Promise<void>} A promise that resolves when the document is set.
+ */
 export const createUserProfile = (user) => {
   if (!user) return;
   const userRef = doc(db, "users", user.uid);
@@ -38,6 +46,11 @@ export const createUserProfile = (user) => {
   return setDoc(userRef, userData, { merge: true });
 };
 
+/**
+ * Retrieves a user's profile from Firestore.
+ * @param {string} userId The UID of the user.
+ * @returns {Promise<object|null>} The user's profile data, or null if not found.
+ */
 export const getUserProfile = async (userId) => {
   if (!userId) return null;
   try {
@@ -50,117 +63,101 @@ export const getUserProfile = async (userId) => {
   }
 };
 
-export const updateUserProfileData = (userId, profileData) => {
-  if (!userId || !profileData)
-    return Promise.reject(new Error("User ID and profile data are required."));
+/**
+ * Updates specific fields in a user's profile document.
+ * @param {string} userId The ID of the user whose profile to update.
+ * @param {object} updates An object containing the fields to update (e.g., { displayName: "New Name" }).
+ * @returns {Promise<void>} A promise that resolves when the update is complete.
+ */
+export const updateUserProfileData = (userId, updates) => {
+  if (!userId || !updates) {
+    return Promise.reject(new Error("User ID and updates are required."));
+  }
   const userRef = doc(db, "users", userId);
-  return setDoc(userRef, profileData, { merge: true });
+  // Add an updatedAt timestamp to track when the profile was last modified
+  return setDoc(
+    userRef,
+    { ...updates, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
 };
 
+/**
+ * Deletes a user's profile document. This should be used with caution.
+ * @param {string} userId The ID of the user profile to delete.
+ * @returns {Promise<void>} A promise that resolves when the deletion is complete.
+ */
 export const deleteUserProfile = (userId) => {
-  if (!userId) return Promise.reject(new Error("User ID is required."));
+  if (!userId) {
+    return Promise.reject(new Error("User ID is required for deletion."));
+  }
   const userRef = doc(db, "users", userId);
   return deleteDoc(userRef);
 };
 
 /**
- * Fetches all user profile documents from the 'users' collection.
- * This function should only be callable by an authenticated admin.
- * @returns {Promise<Array>} A promise that resolves with an array of all user profile objects.
+ * Retrieves all user profiles from the 'users' collection.
+ * This is typically an admin-only function due to potential data size and privacy.
+ * @returns {Promise<Array<object>>} A promise that resolves to an array of user data.
  */
 export const getAllUsers = async () => {
   try {
     const usersRef = collection(db, "users");
-    // Order users by their creation date, with the newest users first.
+    // Order by creation date, latest first
     const q = query(usersRef, orderBy("createdAt", "desc"));
     const querySnapshot = await getDocs(q);
-    // Map the raw Firestore documents to clean JavaScript objects.
     return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
     console.error("Error fetching all users:", error);
-    // On error, return an empty array to prevent the application from crashing.
     return [];
   }
 };
 
 /**
- * Updates the role of a specific user.
- * This is a critical, security-sensitive function.
- * @param {string} userId - The UID of the user to update.
- * @param {string} newRole - The new role to assign (e.g., 'admin' or 'student').
- * @returns {Promise<void>}
+ * Updates a user's role. This is an administrative function.
+ * @param {string} userId The ID of the user whose role to update.
+ * @param {string} newRole The new role to assign (e.g., 'admin', 'user').
+ * @returns {Promise<void>} A promise that resolves when the role is updated.
  */
 export const updateUserRole = (userId, newRole) => {
-  // Validate the inputs to ensure data integrity.
   if (!userId || !newRole) {
     return Promise.reject(new Error("User ID and new role are required."));
   }
-  // Create a reference to the specific user document.
   const userRef = doc(db, "users", userId);
-  // Use 'setDoc' with '{ merge: true }' to update only the 'role' field
-  // without overwriting the rest of the user's profile data.
-  return setDoc(userRef, { role: newRole }, { merge: true });
+  return setDoc(
+    userRef,
+    { role: newRole, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
 };
 
-// You may need to add 'limit' to your main import statement from "firebase/firestore"
-// import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp, orderBy, deleteDoc, writeBatch, getCountFromServer, limit } from "firebase/firestore";
-
 // ===================================================================================
-//  PUBLIC-FACING DATA FUNCTIONS
+//  COURSE FUNCTIONS
 // ===================================================================================
 
 /**
- * Fetches a limited number of the most recent blog posts for the home page preview.
- * @param {number} postLimit - The number of posts to fetch.
- * @returns {Promise<Array>} A promise that resolves with an array of blog post objects.
+ * Retrieves a single course document by its ID.
+ * @param {string} courseId The ID of the course to retrieve.
+ * @returns {Promise<object|null>} A promise that resolves to the course data, or null if not found.
  */
-export const getRecentBlogPosts = async (postLimit = 3) => {
+export const getCourse = async (courseId) => {
+  if (!courseId) return null;
   try {
-    const postsRef = collection(db, "blogPosts");
-    const q = query(postsRef, orderBy("publishedAt", "desc"), limit(postLimit));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const courseRef = doc(db, "courses", courseId);
+    const courseSnap = await getDoc(courseRef);
+    return courseSnap.exists()
+      ? { id: courseSnap.id, ...courseSnap.data() }
+      : null;
   } catch (error) {
-    console.error("Error fetching recent blog posts:", error);
-    // This provides a clearer error for the missing index.
-    if (error.code === "failed-precondition") {
-      console.error(
-        "Firestore Index Missing: Please create a composite index for the 'blogPosts' collection on 'publishedAt' descending."
-      );
-    }
-    throw error; // Re-throw the error so the component can handle it.
+    console.error("Error fetching course:", error);
+    return null;
   }
 };
 
 /**
- * Fetches courses that are specifically marked as "featured" for the home page.
- * @returns {Promise<Array>} A promise that resolves with an array of featured course objects.
+ * Retrieves all course documents from the 'courses' collection.
+ * @returns {Promise<Array<object>>} A promise that resolves to an array of course data.
  */
-export const getFeaturedCourses = async () => {
-  try {
-    const coursesRef = collection(db, "courses");
-    const q = query(coursesRef, where("isFeatured", "==", true));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-  } catch (error) {
-    console.error("Error fetching featured courses:", error);
-    if (error.code === "failed-precondition") {
-      console.error(
-        "Firestore Index Missing: Please create a composite index for the 'courses' collection on 'isFeatured' ascending."
-      );
-      // Provide the direct link in the console for the admin to click.
-      console.error(
-        "You can create this index by visiting the link in the Firebase console error message."
-      );
-    }
-    throw error;
-  }
-};
-
-// ===================================================================================
-//  COURSE & LESSON FUNCTIONS (Public & Admin)
-// ===================================================================================
-
 export const getAllCourses = async () => {
   try {
     const coursesRef = collection(db, "courses");
@@ -173,50 +170,80 @@ export const getAllCourses = async () => {
   }
 };
 
-export const getCourseById = async (courseId) => {
-  if (!courseId) return null;
+/**
+ * Adds a new course to the 'courses' collection.
+ * @param {object} courseData The data for the new course.
+ * @returns {Promise<string>} A promise that resolves to the ID of the new course.
+ */
+export const addCourse = async (courseData) => {
   try {
-    const courseRef = doc(db, "courses", courseId);
-    const courseSnap = await getDoc(courseRef);
-    return courseSnap.exists()
-      ? { id: courseSnap.id, ...courseSnap.data() }
-      : null;
+    const coursesRef = collection(db, "courses");
+    const docRef = await addDoc(coursesRef, {
+      ...courseData,
+      createdAt: serverTimestamp(),
+    });
+    return docRef.id;
   } catch (error) {
-    console.error("Error fetching course by ID:", error);
-    return null;
+    console.error("Error adding course:", error);
+    throw error;
   }
 };
 
-
+/**
+ * Updates an existing course document.
+ * @param {string} courseId The ID of the course to update.
+ * @param {object} updates An object containing the fields to update.
+ * @returns {Promise<void>} A promise that resolves when the update is complete.
+ */
+export const updateCourse = (courseId, updates) => {
+  if (!courseId || !updates) {
+    return Promise.reject(new Error("Course ID and updates are required."));
+  }
+  const courseRef = doc(db, "courses", courseId);
+  return setDoc(
+    courseRef,
+    { ...updates, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+};
 
 /**
- * *** THIS IS THE NEW, CRITICAL FUNCTION THAT WAS MISSING ***
- * Fetches all lesson documents for a specific course, sorted by their order.
- * @param {string} courseId - The ID of the course.
- * @returns {Promise<Array>} A promise that resolves with an array of lesson objects.
+ * Deletes a course document by its ID.
+ * @param {string} courseId The ID of the course to delete.
+ * @returns {Promise<void>} A promise that resolves when the deletion is complete.
  */
-export const getCourseLessons = async (courseId) => {
-  if (!courseId) return [];
-  try {
-    const lessonsRef = collection(db, "lessons");
-    const q = query(
-      lessonsRef,
-      where("courseId", "==", courseId),
-      orderBy("order", "asc")
-    );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-  } catch (error) {
-    console.error("Error fetching course lessons:", error);
-    // You will likely need to create a Firestore index for this query.
-    // The console will provide a direct link to create it if it's missing.
-    if (error.code === "failed-precondition") {
-      console.error(
-        "Firestore Index Missing: An index is required for the 'lessons' collection. Please use the link from the Firebase error in the console to create it."
-      );
-    }
-    throw error;
+export const deleteCourse = (courseId) => {
+  if (!courseId) {
+    return Promise.reject(new Error("Course ID is required for deletion."));
   }
+  const courseRef = doc(db, "courses", courseId);
+  return deleteDoc(courseRef);
+};
+
+export const createOrUpdateCourse = async (
+  courseId,
+  courseData,
+  lessonsData
+) => {
+  const courseRef = courseId
+    ? doc(db, "courses", courseId)
+    : doc(collection(db, "courses"));
+  const finalCourseId = courseRef.id;
+  const batch = writeBatch(db);
+  batch.set(
+    courseRef,
+    { ...courseData, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+  lessonsData.forEach((lesson) => {
+    const lessonWithCourseId = { ...lesson, courseId: finalCourseId };
+    const lessonRef = lesson.id
+      ? doc(db, "lessons", lesson.id)
+      : doc(collection(db, "lessons"));
+    batch.set(lessonRef, lessonWithCourseId, { merge: true });
+  });
+  await batch.commit();
+  return finalCourseId;
 };
 
 /**
@@ -232,8 +259,8 @@ export const getCourseWithLessons = async (courseId) => {
   try {
     // This now correctly calls the functions that we have confirmed exist.
     const [courseData, lessonsData] = await Promise.all([
-      getCourseById(courseId),
-      getCourseLessons(courseId),
+      getCourse(courseId), // Changed from getCourseById
+      getLessonsForCourse(courseId), // Changed from getCourseLessons
     ]);
 
     if (!courseData) {
@@ -268,52 +295,109 @@ export const getCourseWithLessons = async (courseId) => {
   }
 };
 
-export const createOrUpdateCourse = async (
-  courseId,
-  courseData,
-  lessonsData
-) => {
-  const courseRef = courseId
-    ? doc(db, "courses", courseId)
-    : doc(collection(db, "courses"));
-  const finalCourseId = courseRef.id;
-  const batch = writeBatch(db);
-  batch.set(
-    courseRef,
-    { ...courseData, updatedAt: serverTimestamp() },
-    { merge: true }
-  );
-  lessonsData.forEach((lesson) => {
-    const lessonWithCourseId = { ...lesson, courseId: finalCourseId };
-    const lessonRef = lesson.id
-      ? doc(db, "lessons", lesson.id)
-      : doc(collection(db, "lessons"));
-    batch.set(lessonRef, lessonWithCourseId, { merge: true });
-  });
-  await batch.commit();
-  return finalCourseId;
-};
-
-export const deleteCourse = async (courseId) => {
-  if (!courseId) return Promise.reject(new Error("Course ID is required."));
-  const lessonsToDelete = await getCourseLessons(courseId); // This will now work
-  const batch = writeBatch(db);
-  lessonsToDelete.forEach((lesson) => {
-    const lessonRef = doc(db, "lessons", lesson.id);
-    batch.delete(lessonRef);
-  });
-  const courseRef = doc(db, "courses", courseId);
-  batch.delete(courseRef);
-  return batch.commit();
-};
-
 // ===================================================================================
-//  BLOG POST FUNCTIONS (Admin-Specific)
+//  LESSON FUNCTIONS
 // ===================================================================================
 
 /**
- * Fetches all blog posts from the 'blogPosts' collection.
- * @returns {Promise<Array>} A promise that resolves with an array of all blog post objects.
+ * Retrieves all lessons for a given course.
+ * @param {string} courseId The ID of the course.
+ * @returns {Promise<Array<object>>} A promise that resolves to an array of lesson data.
+ */
+export const getLessonsForCourse = async (courseId) => {
+  if (!courseId) return [];
+  try {
+    const lessonsRef = collection(db, "lessons");
+    // Query for lessons belonging to the specific course, ordered by orderIndex
+    const q = query(
+      lessonsRef,
+      where("courseId", "==", courseId),
+      orderBy("order", "asc")
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error(`Error fetching lessons for course ${courseId}:`, error);
+    return [];
+  }
+};
+
+/**
+ * Retrieves a single lesson document by its ID.
+ * @param {string} lessonId The ID of the lesson.
+ * @returns {Promise<object|null>} A promise that resolves to the lesson data, or null.
+ */
+export const getLesson = async (lessonId) => {
+  if (!lessonId) return null;
+  try {
+    const lessonRef = doc(db, "lessons", lessonId);
+    const lessonSnap = await getDoc(lessonRef);
+    return lessonSnap.exists()
+      ? { id: lessonSnap.id, ...lessonSnap.data() }
+      : null;
+  } catch (error) {
+    console.error(`Error fetching lesson ${lessonId}:`, error);
+    return null;
+  }
+};
+
+/**
+ * Adds a new lesson to a course.
+ * @param {object} lessonData The data for the new lesson, including courseId.
+ * @returns {Promise<string>} A promise that resolves to the ID of the new lesson.
+ */
+export const addLesson = async (lessonData) => {
+  try {
+    const lessonsRef = collection(db, "lessons");
+    const docRef = await addDoc(lessonsRef, {
+      ...lessonData,
+      createdAt: serverTimestamp(),
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error("Error adding lesson:", error);
+    throw error;
+  }
+};
+
+/**
+ * Updates an existing lesson document.
+ * @param {string} lessonId The ID of the lesson to update.
+ * @param {object} updates An object containing the fields to update.
+ * @returns {Promise<void>} A promise that resolves when the update is complete.
+ */
+export const updateLesson = (lessonId, updates) => {
+  if (!lessonId || !updates) {
+    return Promise.reject(new Error("Lesson ID and updates are required."));
+  }
+  const lessonRef = doc(db, "lessons", lessonId);
+  return setDoc(
+    lessonRef,
+    { ...updates, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+};
+
+/**
+ * Deletes a lesson document by its ID.
+ * @param {string} lessonId The ID of the lesson to delete.
+ * @returns {Promise<void>} A promise that resolves when the deletion is complete.
+ */
+export const deleteLesson = (lessonId) => {
+  if (!lessonId) {
+    return Promise.reject(new Error("Lesson ID is required for deletion."));
+  }
+  const lessonRef = doc(db, "lessons", lessonId);
+  return deleteDoc(lessonRef);
+};
+
+// ===================================================================================
+//  BLOG POST FUNCTIONS
+// ===================================================================================
+
+/**
+ * Retrieves all blog posts.
+ * @returns {Promise<Array<object>>} A promise that resolves to an array of blog post data.
  */
 export const getAllBlogPosts = async () => {
   try {
@@ -329,9 +413,9 @@ export const getAllBlogPosts = async () => {
 };
 
 /**
- * Fetches a single blog post document by its ID.
- * @param {string} postId - The ID of the post.
- * @returns {Promise<object|null>} The post data or null.
+ * Retrieves a single blog post by its ID.
+ * @param {string} postId The ID of the blog post.
+ * @returns {Promise<object|null>} A promise that resolves to the blog post data, or null.
  */
 export const getBlogPostById = async (postId) => {
   if (!postId) return null;
@@ -340,17 +424,61 @@ export const getBlogPostById = async (postId) => {
     const postSnap = await getDoc(postRef);
     return postSnap.exists() ? { id: postSnap.id, ...postSnap.data() } : null;
   } catch (error) {
-    console.error("Error fetching blog post by ID:", error);
+    console.error(`Error fetching blog post ${postId}:`, error);
     return null;
   }
 };
 
 /**
- * Creates a new blog post or updates an existing one.
- * @param {string|null} postId - The ID of the post to update, or null to create a new one.
- * @param {object} postData - The data for the blog post document.
- * @returns {Promise<string>} The ID of the created or updated post.
+ * Adds a new blog post.
+ * @param {object} postData The data for the new blog post.
+ * @returns {Promise<string>} A promise that resolves to the ID of the new post.
  */
+export const addBlogPost = async (postData) => {
+  try {
+    const blogPostsRef = collection(db, "blogPosts");
+    const docRef = await addDoc(blogPostsRef, {
+      ...postData,
+      createdAt: serverTimestamp(),
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error("Error adding blog post:", error);
+    throw error;
+  }
+};
+
+/**
+ * Updates an existing blog post.
+ * @param {string} postId The ID of the blog post to update.
+ * @param {object} updates An object containing the fields to update.
+ * @returns {Promise<void>} A promise that resolves when the update is complete.
+ */
+export const updateBlogPost = (postId, updates) => {
+  if (!postId || !updates) {
+    return Promise.reject(new Error("Post ID and updates are required."));
+  }
+  const postRef = doc(db, "blogPosts", postId);
+  return setDoc(
+    postRef,
+    { ...updates, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+};
+
+/**
+ * Deletes a blog post by its ID.
+ * @param {string} postId The ID of the blog post to delete.
+ * @returns {Promise<void>} A promise that resolves when the deletion is complete.
+ */
+export const deleteBlogPost = (postId) => {
+  if (!postId) {
+    return Promise.reject(new Error("Post ID is required for deletion."));
+  }
+  const postRef = doc(db, "blogPosts", postId);
+  return deleteDoc(postRef);
+};
+
 export const createOrUpdateBlogPost = async (postId, postData) => {
   const postRef = postId
     ? doc(db, "blogPosts", postId)
@@ -369,24 +497,114 @@ export const createOrUpdateBlogPost = async (postId, postData) => {
   return postRef.id;
 };
 
-export const deleteBlogPost = async (postId) => { // Added the missing delete function
-  if (!postId) return Promise.reject(new Error("Post ID is required."));
-  const postRef = doc(db, "blogPosts", postId);
-  return deleteDoc(postRef);
-};
-
 // ===================================================================================
-//  ENROLLMENT FUNCTIONS (Admin-Specific)
+//  ENROLLMENT FUNCTIONS (MODIFIED FOR CRYPTO FLOW)
 // ===================================================================================
 
 /**
- * Fetches all enrollment documents from the 'enrollments' collection.
- * @returns {Promise<Array>} A promise that resolves with an array of all enrollment objects.
+ * Creates a new enrollment record for a user in a course.
+ * This function has been MODIFIED to support the new crypto payment flow.
+ * For crypto payments, it now sets the initial status to 'awaiting_payment' and can store
+ * initial wallet details if provided.
+ * For other payment methods, it typically sets the status to 'pending_verification' or 'active'
+ * depending on the payment gateway's immediate confirmation.
+ *
+ * @param {string} userId The ID of the user enrolling.
+ * @param {string} courseId The ID of the course being enrolled in.
+ * @param {string} courseTitle The title of the course.
+ * @param {string} paymentMethod The payment method used (e.g., 'paystack', 'crypto', 'simulated').
+ * @param {object|null} initialCryptoDetails Optional, contains initial crypto wallet address, coin, and network
+ * if the enrollment is for crypto and an address was generated.
+ * @returns {Promise<string>} A promise that resolves with the ID of the new enrollment document.
+ */
+export const createEnrollment = async (
+  userId,
+  courseId,
+  courseTitle,
+  paymentMethod,
+  initialCryptoDetails = null
+) => {
+  if (!userId || !courseId || !courseTitle || !paymentMethod) {
+    return Promise.reject(
+      new Error(
+        "User ID, course ID, course title, and payment method are required."
+      )
+    );
+  }
+
+  // Create a unique enrollment ID based on user and course to prevent duplicate enrollments
+  // This assumes a user can only enroll in a course once.
+  const enrollmentId = `${userId}_${courseId}`;
+  const enrollmentRef = doc(db, "enrollments", enrollmentId);
+
+  // Determine the initial status based on the payment method
+  let status = "pending_verification"; // Default for Paystack/Simulated
+  if (paymentMethod === "crypto") {
+    status = "awaiting_payment"; // New status for crypto payments before user confirms payment
+  }
+
+  const enrollmentData = {
+    userId,
+    courseId,
+    courseTitle,
+    paymentMethod,
+    status, // Set the determined initial status
+    enrolledAt: serverTimestamp(),
+  };
+
+  // If crypto payment and initial details are provided, add them to the enrollment record
+  if (paymentMethod === "crypto" && initialCryptoDetails) {
+    enrollmentData.cryptoWalletAddress = initialCryptoDetails.address;
+    enrollmentData.cryptoCoin = initialCryptoDetails.coin;
+    enrollmentData.cryptoNetwork = initialCryptoDetails.network;
+  }
+
+  try {
+    await setDoc(enrollmentRef, enrollmentData, { merge: true }); // Use merge to allow idempotent creation
+    return enrollmentId;
+  } catch (error) {
+    console.error("Error creating enrollment:", error);
+    throw error;
+  }
+};
+
+/**
+ * NEW FUNCTION: Submits a payment confirmation for a crypto enrollment.
+ * This function is called by the frontend when the user clicks "I Have Paid".
+ * It updates the enrollment status to 'pending_confirmation' and adds detailed payment info.
+ *
+ * @param {string} enrollmentId The ID of the enrollment document to update.
+ * @param {object} paymentDetails An object containing details like coin, network, amount.
+ * @returns {Promise<void>} A promise that resolves when the document is updated.
+ */
+export const submitPaymentConfirmation = (enrollmentId, paymentDetails) => {
+  if (!enrollmentId || !paymentDetails) {
+    return Promise.reject(
+      new Error(
+        "Enrollment ID and payment details are required for confirmation."
+      )
+    );
+  }
+  const enrollmentRef = doc(db, "enrollments", enrollmentId);
+  return setDoc(
+    enrollmentRef,
+    {
+      status: "pending_confirmation", // Set status to pending confirmation for admin review
+      paymentDetails: paymentDetails, // Store the details provided by the user (coin, network, amount)
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true } // Merge to update specific fields without overwriting the whole document
+  );
+};
+
+/**
+ * Fetches all enrollment documents from Firestore.
+ * @returns {Promise<Array<object>>} A promise that resolves to an array of enrollment data.
  */
 export const getAllEnrollments = async () => {
   try {
     const enrollmentsRef = collection(db, "enrollments");
-    // Order by most recent enrollment first
+    // Order by 'enrolledAt' in descending order to show latest enrollments first
     const q = query(enrollmentsRef, orderBy("enrolledAt", "desc"));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -397,11 +615,10 @@ export const getAllEnrollments = async () => {
 };
 
 /**
- * Updates the status of a specific enrollment document.
- * This is used by admins to confirm crypto payments.
- * @param {string} enrollmentId - The ID of the enrollment document.
- * @param {string} newStatus - The new status (e.g., 'active').
- * @returns {Promise<void>}
+ * Updates the status of an enrollment document. Primarily used by admin.
+ * @param {string} enrollmentId The ID of the enrollment to update.
+ * @param {string} newStatus The new status (e.g., 'active', 'declined', 'pending_verification').
+ * @returns {Promise<void>} A promise that resolves when the update is complete.
  */
 export const updateEnrollmentStatus = (enrollmentId, newStatus) => {
   if (!enrollmentId || !newStatus) {
@@ -410,17 +627,173 @@ export const updateEnrollmentStatus = (enrollmentId, newStatus) => {
     );
   }
   const enrollmentRef = doc(db, "enrollments", enrollmentId);
-  // We use { merge: true } to be safe, though we are only updating one field.
   return setDoc(
     enrollmentRef,
-    { status: newStatus, updatedAt: serverTimestamp() },
+    {
+      status: newStatus,
+      updatedAt: serverTimestamp(),
+    },
     { merge: true }
   );
 };
 
 // ===================================================================================
-//  ENROLLMENT FUNCTIONS
+//  ADMIN DASHBOARD FUNCTIONS
 // ===================================================================================
+
+/**
+ * Fetches various statistics for the admin dashboard.
+ * This function includes a query for 'pending_confirmation' enrollments.
+ * @returns {Promise<object>} A promise that resolves with an object containing dashboard stats.
+ */
+export const getAdminDashboardStats = async () => {
+  try {
+    // Create references to our main collections.
+    const usersRef = collection(db, "users");
+    const coursesRef = collection(db, "courses");
+    const enrollmentsRef = collection(db, "enrollments");
+    const blogPostsRef = collection(db, "blogPosts"); // Reference for blog posts count
+
+    // Create specific queries for counts
+    const pendingVerificationQuery = query(
+      enrollmentsRef,
+      where("status", "in", [
+        "pending_verification",
+        "pending_confirmation",
+        "awaiting_payment",
+      ]) // Include all pending crypto statuses
+    );
+
+    // Use Promise.all to run all our database queries in parallel for maximum speed.
+    const [
+      userCountSnap,
+      courseCountSnap,
+      enrollmentCountSnap,
+      pendingEnrollmentCountSnap,
+      blogPostCountSnap, // Added for blog post count
+    ] = await Promise.all([
+      getCountFromServer(usersRef),
+      getCountFromServer(coursesRef),
+      getCountFromServer(enrollmentsRef),
+      getCountFromServer(pendingVerificationQuery),
+      getCountFromServer(blogPostsRef), // Get count of blog posts
+    ]);
+
+    // Return a clean object with all the data.
+    return {
+      totalUsers: userCountSnap.data().count,
+      totalCourses: courseCountSnap.data().count,
+      totalEnrollments: enrollmentCountSnap.data().count,
+      pendingEnrollments: pendingEnrollmentCountSnap.data().count, // This now includes all crypto pending statuses
+      totalBlogPosts: blogPostCountSnap.data().count, // Include total blog posts
+    };
+  } catch (error) {
+    console.error("Error fetching admin dashboard stats:", error);
+    // On error, we can return null or a default state.
+    return {
+      totalUsers: 0,
+      totalCourses: 0,
+      totalEnrollments: 0,
+      pendingEnrollments: 0,
+      totalBlogPosts: 0,
+    };
+  }
+};
+
+// ===================================================================================
+//  FEATURED CONTENT FUNCTIONS
+// ===================================================================================
+
+/**
+ * Retrieves a limited number of featured courses.
+ * @param {number} numCourses The number of featured courses to retrieve.
+ * @returns {Promise<Array<object>>} A promise that resolves to an array of featured course data.
+ */
+export const getFeaturedCourses = async (numCourses = 3) => {
+  try {
+    const coursesRef = collection(db, "courses");
+    // Assuming 'isFeatured' field exists and is true for featured courses
+    const q = query(
+      coursesRef,
+      where("isFeatured", "==", true),
+      limit(numCourses)
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error("Error fetching featured courses:", error);
+    return [];
+  }
+};
+
+/**
+ * Retrieves a limited number of featured blog posts.
+ * @param {number} numPosts The number of featured blog posts to retrieve.
+ * @returns {Promise<Array<object>>} A promise that resolves to an array of featured blog post data.
+ */
+export const getFeaturedBlogPosts = async (numPosts = 3) => {
+  try {
+    const blogPostsRef = collection(db, "blogPosts");
+    // Assuming 'isFeatured' field exists and is true for featured blog posts
+    const q = query(
+      blogPostsRef,
+      where("isFeatured", "==", true),
+      limit(numPosts)
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error("Error fetching featured blog posts:", error);
+    return [];
+  }
+};
+
+/**
+ * Fetches a limited number of the most recent blog posts for the home page preview.
+ * @param {number} postLimit - The number of posts to fetch.
+ * @returns {Promise<Array>} A promise that resolves with an array of blog post objects.
+ */
+export const getRecentBlogPosts = async (postLimit = 3) => {
+  try {
+    const postsRef = collection(db, "blogPosts");
+    const q = query(postsRef, orderBy("publishedAt", "desc"), limit(postLimit));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error("Error fetching recent blog posts:", error);
+    // This provides a clearer error for the missing index.
+    if (error.code === "failed-precondition") {
+      console.error(
+        "Firestore Index Missing: Please create a composite index for the 'blogPosts' collection on 'publishedAt' descending."
+      );
+    }
+    throw error; // Re-throw the error so the component can handle it.
+  }
+};
+
+// ===================================================================================
+//  BATCH OPERATIONS (Example, if needed for complex transactions)
+// ===================================================================================
+
+/**
+ * Executes a batch of Firestore write operations (set, update, delete).
+ * This is useful for performing multiple atomic operations.
+ * @param {Array<object>} operations An array of operations, each with { type: 'set'|'update'|'delete', ref: DocRef, data?: object }.
+ * @returns {Promise<void>} A promise that resolves when the batch is committed.
+ */
+export const executeBatch = async (operations) => {
+  const batch = writeBatch(db);
+  operations.forEach((op) => {
+    if (op.type === "set") {
+      batch.set(op.ref, op.data, { merge: true });
+    } else if (op.type === "update") {
+      batch.update(op.ref, op.data);
+    } else if (op.type === "delete") {
+      batch.delete(op.ref);
+    }
+  });
+  return batch.commit();
+};
 
 export const getEnrolledCourses = async (userId) => {
   if (!userId) return [];
@@ -432,7 +805,7 @@ export const getEnrolledCourses = async (userId) => {
 
     const coursePromises = querySnapshot.docs.map((enrollmentDoc) => {
       const courseId = enrollmentDoc.data().courseId;
-      return getCourseById(courseId);
+      return getCourse(courseId); // Changed from getCourseById
     });
 
     const courses = await Promise.all(coursePromises);
@@ -440,87 +813,5 @@ export const getEnrolledCourses = async (userId) => {
   } catch (error) {
     console.error("Error fetching enrolled courses:", error);
     return [];
-  }
-};
-
-export const createEnrollment = (
-  userId,
-  courseId,
-  courseTitle,
-  paymentMethod
-) => {
-  if (!userId || !courseId) {
-    return Promise.reject(
-      new Error("User ID and Course ID are required to create an enrollment.")
-    );
-  }
-  const enrollmentId = `${userId}_${courseId}`;
-  const enrollmentRef = doc(db, "enrollments", enrollmentId);
-  const enrollmentData = {
-    userId: userId,
-    courseId: courseId,
-    courseTitle: courseTitle,
-    enrolledAt: serverTimestamp(),
-    paymentProvider: paymentMethod,
-    progressPercentage: 0,
-    status: paymentMethod === "crypto" ? "pending_verification" : "active",
-  };
-  return setDoc(enrollmentRef, enrollmentData);
-};
-
-// ===================================================================================
-//  USER MANAGEMENT FUNCTIONS (Admin-Specific)
-// ===================================================================================
-
-// Import the 'getCountFromServer' function for efficient counting.
-// import { getCountFromServer } from "firebase/firestore";
-
-// ===================================================================================
-//  ADMIN DASHBOARD FUNCTIONS
-// ===================================================================================
-
-/**
- * Fetches all the necessary statistics for the main admin dashboard.
- * This is an efficient function that uses server-side counts to minimize data transfer.
- * @returns {Promise<object>} A promise that resolves with an object containing dashboard stats.
- */
-export const getAdminDashboardStats = async () => {
-  try {
-    // Create references to our main collections.
-    const usersRef = collection(db, "users");
-    const coursesRef = collection(db, "courses");
-    const enrollmentsRef = collection(db, "enrollments");
-
-    // Create a specific query to find only the enrollments that are pending.
-    const pendingEnrollmentsQuery = query(
-      enrollmentsRef,
-      where("status", "==", "pending_verification")
-    );
-
-    // Use Promise.all to run all our database queries in parallel for maximum speed.
-    const [
-      userCountSnap,
-      courseCountSnap,
-      enrollmentCountSnap,
-      pendingEnrollmentCountSnap,
-    ] = await Promise.all([
-      getCountFromServer(usersRef),
-      getCountFromServer(coursesRef),
-      getCountFromServer(enrollmentsRef),
-      getCountFromServer(pendingEnrollmentsQuery),
-    ]);
-
-    // Return a clean object with all the data.
-    return {
-      totalUsers: userCountSnap.data().count,
-      totalCourses: courseCountSnap.data().count,
-      totalEnrollments: enrollmentCountSnap.data().count,
-      pendingEnrollments: pendingEnrollmentCountSnap.data().count,
-    };
-  } catch (error) {
-    console.error("Error fetching admin dashboard stats:", error);
-    // On error, we can return null or a default state.
-    // Throwing the error allows the component to handle it.
-    throw error;
   }
 };

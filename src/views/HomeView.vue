@@ -127,24 +127,35 @@
               saying about their transformation at Nexus Academy.
             </p>
           </div>
-          <div class="testimonials-grid">
-            <div
-              v-for="testimonial in testimonials"
-              :key="testimonial.name"
-              class="testimonial-card animate-on-scroll"
-            >
-              <p class="testimonial-quote">"{{ testimonial.quote }}"</p>
-              <div class="testimonial-author">
-                <img
-                  :src="testimonial.image"
-                  :alt="testimonial.name"
-                  class="author-image"
-                />
-                <div>
-                  <p class="author-name">{{ testimonial.name }}</p>
-                  <p class="author-title">{{ testimonial.role }}</p>
+          <div class="testimonial-slider-container">
+            <div class="testimonial-slider">
+              <div
+                v-for="(testimonial, index) in testimonials"
+                :key="index"
+                class="testimonial-slide"
+                :class="{ active: index === activeTestimonial }"
+              >
+                <p class="testimonial-quote">"{{ testimonial.quote }}"</p>
+                <div class="testimonial-author">
+                  <img
+                    :src="testimonial.image"
+                    :alt="testimonial.name"
+                    class="author-image"
+                  />
+                  <div>
+                    <p class="author-name">{{ testimonial.name }}</p>
+                    <p class="author-title">{{ testimonial.role }}</p>
+                  </div>
                 </div>
               </div>
+            </div>
+            <div class="testimonial-nav">
+              <button @click="prevTestimonial" class="nav-arrow prev-arrow">
+                &#x2190;
+              </button>
+              <button @click="nextTestimonial" class="nav-arrow next-arrow">
+                &#x2192;
+              </button>
             </div>
           </div>
         </div>
@@ -226,7 +237,7 @@
 
 <script setup>
 // **THE FIX:** Import 'watch' and 'nextTick' from Vue.
-import { ref, onMounted, watch, nextTick } from 'vue';
+import { ref, onMounted, watch, nextTick, onUnmounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import { getFeaturedCourses, getRecentBlogPosts } from '@/services/db.js';
 
@@ -325,6 +336,10 @@ const coursesError = ref(null);
 const blogLoading = ref(true);
 const blogError = ref(null);
 
+// --- Testimonial Slider State ---
+const activeTestimonial = ref(0);
+let testimonialInterval = null;
+
 // --- Methods ---
 const formatDate = (timestamp) => {
   if (!timestamp || !timestamp.toDate) return 'N/A';
@@ -334,6 +349,26 @@ const formatDate = (timestamp) => {
 const formatPrice = (price, currency = 'NGN') => {
   if (typeof price !== 'number') return 'N/A';
   return new Intl.NumberFormat('en-NG', { style: 'currency', currency }).format(price / 100);
+};
+
+// --- Testimonial Slider Methods ---
+const nextTestimonial = () => {
+  activeTestimonial.value = (activeTestimonial.value + 1) % testimonials.length;
+};
+
+const prevTestimonial = () => {
+  activeTestimonial.value =
+    (activeTestimonial.value - 1 + testimonials.length) % testimonials.length;
+};
+
+const startTestimonialSlider = () => {
+  testimonialInterval = setInterval(() => {
+    nextTestimonial();
+  }, 5000); // Change slide every 5 seconds
+};
+
+const stopTestimonialSlider = () => {
+  clearInterval(testimonialInterval);
 };
 
 // ===================================================================================
@@ -393,9 +428,14 @@ onMounted(() => {
   fetchCourses();
   fetchPosts();
   initHeroAnimation();
+  startTestimonialSlider(); // Start the slider
   // We still call it here for the static elements on the page.
   // The 'watch' will handle the dynamic ones once the data arrives.
   initScrollAnimations();
+});
+
+onUnmounted(() => {
+  stopTestimonialSlider(); // Stop the slider when component is unmounted
 });
 
 function initHeroAnimation() {
@@ -552,6 +592,80 @@ function initHeroAnimation() {
 }
 .author-title {
   font-size: 0.875rem;
+}
+
+/* Testimonial Slider Specific Styles */
+.testimonial-slider-container {
+  position: relative;
+  max-width: 800px;
+  margin: 2rem auto;
+  overflow: hidden;
+}
+
+.testimonial-slider {
+  display: flex;
+  transition: transform 0.5s ease-in-out;
+}
+
+.testimonial-slide {
+  min-width: 100%;
+  box-sizing: border-box;
+  background-color: var(--dark-blue-card);
+  padding: 2.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--dark-border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.testimonial-slide.active {
+  opacity: 1;
+  position: relative;
+}
+
+.testimonial-nav {
+  position: absolute;
+  top: 50%;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  transform: translateY(-50%);
+  z-index: 10;
+  padding: 0 1rem;
+}
+
+.nav-arrow {
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: none;
+  padding: 0.75rem 1rem;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.5rem;
+  transition: background-color 0.3s;
+}
+
+.nav-arrow:hover {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+/* Adjust for smaller screens */
+@media (max-width: 768px) {
+  .testimonial-slide {
+    padding: 1.5rem;
+  }
+  .nav-arrow {
+    padding: 0.5rem 0.75rem;
+    font-size: 1.2rem;
+  }
 }
 .blog-post-card {
   background-color: var(--dark-blue-card);

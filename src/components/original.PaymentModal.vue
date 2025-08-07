@@ -1,4 +1,4 @@
-<!-- /src/components/PaymentModal.vue - FINAL, ENHANCED WITH NEW CRYPTO FLOW -->
+<!-- /src/components/PaymentModal.vue - FINAL, ENHANCED WITH CRYPTO -->
 
 <template>
   <div class="modal-overlay" @click.self="closeModal">
@@ -12,18 +12,16 @@
       </button>
 
       <!-- View 1: Initial Choice (Paystack / Crypto / Simulated) -->
-      <!-- This view is shown initially, allowing the user to select a payment method. -->
-      <div v-if="!showCryptoDetails && !paymentSubmitted">
+      <div v-if="!showCryptoDetails">
         <h2>Choose Your Payment Method</h2>
 
-        <!-- Paystack Option (Original Logic - Commented out for now, as per original file) -->
-        <!-- This section is restored as it was in the original PaymentModal.vue -->
+        <!-- Paystack Option (Original Logic - Commented out for now) -->
         <div class="payment-option" @click="initiatePaystackPayment">
           <h3>Pay with Card / Bank</h3>
           <p>Securely pay with your card or bank account via Paystack.</p>
         </div>
 
-        <!-- Crypto Option (New Flow - Triggers crypto details view) -->
+        <!-- Crypto Option -->
         <div class="payment-option" @click="handleCryptoPaymentChoice">
           <h3>Pay with Crypto</h3>
           <p>
@@ -32,8 +30,7 @@
           </p>
         </div>
 
-        <!-- Simulated Enrollment Option (For Development/Testing) -->
-        <!-- This option is useful for quickly testing enrollment without actual payments. -->
+        <!-- Simulated Enrollment Option (For Development) -->
         <div
           class="payment-option simulated"
           @click="handleSimulatedEnrollment"
@@ -44,22 +41,18 @@
       </div>
 
       <!-- View 2: Crypto Payment Details -->
-      <!-- This view is displayed when the user chooses 'Pay with Crypto'. -->
-      <div
-        v-else-if="showCryptoDetails && !paymentSubmitted"
-        class="crypto-details-view"
-      >
-        <a
-          href="#"
-          @click.prevent="showCryptoDetails = false"
-          class="back-link"
+      <div v-else class="crypto-details-view">
+        <a href="#" @click.prevent="showCryptoDetails = false" class="back-link"
+          >← Back to options</a
         >
-          ← Back to Payment Options
-        </a>
-        <h2>Crypto Payment</h2>
+        <h2>Pay with Crypto</h2>
+        <p class="page-description">
+          Select your preferred cryptocurrency and network. Your access will be
+          granted after manual confirmation by our team.
+        </p>
 
-        <!-- Form for selecting Coin and Network -->
-        <form @submit.prevent="generateCryptoAddress" v-if="!currentWallet">
+        <!-- Crypto Form -->
+        <form @submit.prevent="generateCryptoAddress">
           <div class="form-group">
             <label for="crypto-method">Cryptocurrency</label>
             <select
@@ -99,19 +92,18 @@
             <input
               type="text"
               id="crypto-amount"
-              :value="`${course.price.toFixed(2)}`"
+              :value="`$${course.price.toFixed(2)}`"
               readonly
               class="form-control"
             />
           </div>
 
           <button type="submit" class="btn btn-primary form-submit-btn">
-            Generate Wallet Address
+            Generate Address
           </button>
         </form>
 
-        <!-- Wallet Display Card (Dynamically shown after address generation) -->
-        <!-- This section displays the generated wallet address and the 'I Have Paid' button. -->
+        <!-- Wallet Display Card (Dynamically shown after generation) -->
         <div v-if="currentWallet" class="card wallet-card">
           <h4>Make Your Deposit</h4>
           <p>
@@ -148,33 +140,11 @@
             loss.</small
           >
           <p class="crypto-notice">
-            After making the payment, click the button below to confirm. The
-            button will be enabled after a short delay to ensure you have time
-            to complete the transaction.
+            After payment, send your transaction hash/ID and your Nexus Academy
+            email to our support team for verification. Access will be granted
+            after manual confirmation.
           </p>
-
-          <!-- NEW: "I Have Paid" Button -->
-          <!-- This button is initially disabled and enables after a timeout. -->
-          <button
-            @click="handlePaymentConfirmation"
-            :disabled="isConfirmButtonDisabled"
-            class="btn btn-primary form-submit-btn"
-          >
-            {{ confirmButtonText }}
-          </button>
         </div>
-      </div>
-
-      <!-- NEW: View 3: Payment Submitted Confirmation -->
-      <!-- This view is displayed after the user clicks "I Have Paid". -->
-      <div v-if="paymentSubmitted" class="payment-submitted-view">
-        <h4>Payment Submitted!</h4>
-        <p>
-          Thank you for your payment. Our team will verify it shortly, and your
-          course access will be activated. You can check the status of your
-          enrollment in your dashboard.
-        </p>
-        <button @click="closeModal" class="btn btn-secondary">Close</button>
       </div>
     </div>
   </div>
@@ -186,7 +156,7 @@
 import { ref, computed, watch, onMounted, nextTick } from "vue"; // Correctly imported
 import { useRouter } from "vue-router";
 import { auth } from "../services/firebase.js";
-import { createEnrollment, submitPaymentConfirmation } from "../services/db.js";
+import { createEnrollment } from "../services/original.db.js";
 import { companyWallets } from "../services/cryptoWallets.js";
 
 // --- PROPS, EMITS, & STATE ---
@@ -199,9 +169,6 @@ const walletAddressInput = ref(null);
 const selectedCoin = ref("usdt");
 const selectedNetworkValue = ref("");
 const currentWallet = ref(null);
-const paymentSubmitted = ref(false); // NEW: Controls visibility of payment submitted confirmation view
-const isConfirmButtonDisabled = ref(true); // NEW: Controls the disabled state of the "I Have Paid" button
-const confirmButtonText = ref("I Have Paid (Enabling in 60s)"); // NEW: Text for the "I Have Paid" button
 
 // --- COMPUTED PROPERTIES ---
 const networksForSelectedCoin = computed(() => {
@@ -338,10 +305,6 @@ async function generateCryptoAddress() {
     console.error("Failed to create pending crypto enrollment:", error);
     alert("Could not record crypto payment initiation. Please try again.");
   }
-    setTimeout(() => {
-      isConfirmButtonDisabled.value = false;
-      confirmButtonText.value = "I Have Paid";
-    }, 60000); // 60 seconds
 }
 
 function copyWalletAddress() {
@@ -352,41 +315,6 @@ function copyWalletAddress() {
     setTimeout(() => {
       copyButtonText.value = "Copy";
     }, 2000);
-  }
-}
-
-/**
- * NEW: Handles the user clicking "I Have Paid".
- * This function calls the backend to update the enrollment status to 'pending_confirmation'.
- */
-async function handlePaymentConfirmation() {
-  const user = auth.currentUser;
-  if (!user) {
-    console.error("No user logged in to confirm payment.");
-    // Show a user-friendly message or redirect to login
-    router.push({ name: "Login" }); // Example: redirect to login
-    return;
-  }
-
-  // The enrollment ID is typically userId_courseId
-  const enrollmentId = `${user.uid}_${props.course.id}`;
-  const paymentDetails = {
-    coin: selectedCoin.value,
-    network: selectedNetworkValue.value,
-    amount: props.course.price, // Assuming course.price is the crypto amount expected
-  };
-
-  try {
-    // Call the new database function to mark the payment as pending confirmation
-    await submitPaymentConfirmation(enrollmentId, paymentDetails);
-    paymentSubmitted.value = true; // Show the confirmation view to the user
-    // No need to emit 'enrollment-success' here, as it's still pending admin confirmation.
-  } catch (error) {
-    console.error("Failed to submit payment confirmation:", error);
-    // Use a custom modal or toast for user feedback instead of alert
-    alert(
-      "There was an error submitting your payment confirmation. Please try again."
-    );
   }
 }
 
